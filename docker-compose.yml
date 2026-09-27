@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: boardsync-frontend-dev
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:3000/api/v1
+      - VITE_WS_URL=http://localhost:3001
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/dist
+    networks:
+      - boardsync_dev_network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../3-course-sd-lifecycle-be
+      dockerfile: Dockerfile
+      target: development
+    container_name: boardsync-backend-dev
+    environment:
+      - NODE_ENV=development
+    env_file:
+      - ../3-course-sd-lifecycle-be/.env.dev
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    volumes:
+      - ../3-course-sd-lifecycle-be:/app
+      - /app/node_modules
+      - /app/dist
+    networks:
+      - boardsync_dev_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: boardsync-postgres-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: boardsync_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - boardsync_postgres_dev_data:/var/lib/postgresql/data
+      - ../3-course-sd-lifecycle-be/init-db:/docker-entrypoint-initdb.d:ro
+    networks:
+      - boardsync_dev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d boardsync_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  boardsync_dev_network:
+    name: boardsync-dev-network
+    driver: bridge
+    external: true
+
+volumes:
+  boardsync_postgres_dev_data:
+    name: boardsync-postgres-dev-data
+    external: true
