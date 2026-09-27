@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { User, Board, Card, Column, Label, Comment, JiraIssueMapping, SyncLog, AuthTokens, LoginCredentials, RegisterData } from '../types';
+import type { User, Board, Card, Column, Label, JiraIssueMapping, SyncLog, AuthTokens, LoginCredentials, RegisterData } from '../types';
 
 export const authApi = {
   login: (credentials: LoginCredentials) =>

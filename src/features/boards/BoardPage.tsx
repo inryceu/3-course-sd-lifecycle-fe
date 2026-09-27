@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { columnsApi, cardsApi, boardsApi } from '../../api/endpoints';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import type { Column, Card, Board } from '../../types';
-import { ColumnType } from '../../types';
+import type { Card, ColumnType } from '../../types';
 
 interface DragItem {
   type: 'card';
@@ -38,7 +37,7 @@ export function BoardPage() {
 
   const createCardMutation = useMutation({
     mutationFn: (data: { columnId: string; title: string; description?: string }) =>
-      cardsApi.create(data.columnId, { title: data.title, description: data.description, columnId: data.columnId }),
+      cardsApi.create(data.columnId, { title: data.title, description: data.description }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['columns', boardId] }),
   });
 

@@ -17,11 +17,13 @@ export interface Board {
 export interface Column {
   id: string;
   title: string;
-  type: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+  type: ColumnType;
   position: number;
   boardId: string;
   cards: Card[];
 }
+
+export type ColumnType = 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
 
 export interface Card {
   id: string;
