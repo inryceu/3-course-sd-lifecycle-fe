@@ -1,6 +1,8 @@
 # BoardSync — AGENTS.md (Frontend)
 
-> Instructions for AI agents working on the BoardSync **frontend** codebase. See backend `../3-course-sd-lifecycle-be/AGENTS.md` for backend-specific instructions and full architecture context.
+> **CRITICAL: AI agents are PROHIBITED from modifying this file.** This file is the single source of truth for agent context, conventions, and workflows. Any changes must be made by human developers only.
+
+> **CRITICAL: AI agents are PROHIBITED from merging ANY PRs.** Agents may only open, close, modify, or comment on PRs. Merging requires explicit human approval.
 
 ---
 
@@ -8,7 +10,7 @@
 
 **BoardSync** — Kanban board with bidirectional Jira synchronization.
 - **Frontend**: TypeScript, React 18+, Vite
-- **Backend**: TypeScript, NestJS, TypeORM, PostgreSQL (modular monolith) — in separate repo
+- **Backend**: TypeScript, NestJS, TypeORM, PostgreSQL (modular monolith) — in separate repo: `3-course-sd-lifecycle-be`
 - **Architecture**: Modular monolith backend with 4 modules: `auth`, `boards-cards`, `jira-sync`, `realtime`
 - **Methodology**: Spec-driven development via OpenSpec (specs live in **backend only**)
 
@@ -21,13 +23,14 @@
 | Language | TypeScript (strict mode) |
 | Framework | React 18+ |
 | Build Tool | Vite 5+ |
-| State Management | React Query / TanStack Query, Zustand (if needed) |
+| State Management | React Query / TanStack Query, Zustand |
 | Routing | React Router 6+ |
 | UI Components | Custom + Headless UI / Radix |
-| Styling | CSS Modules / Tailwind (TBD) |
+| Styling | Tailwind CSS |
 | Real-time | Socket.IO Client |
 | Testing | Vitest, React Testing Library |
 | Linting | ESLint, Prettier |
+| Package Manager | pnpm 9+ |
 
 ---
 
@@ -41,7 +44,7 @@
 
 3. **API layer**: All backend communication through a typed API client (`src/api/`) with generated types from OpenAPI/Specs.
 
-4. **Real-time**: WebSocket connections managed in `src/realtime/` — subscribe to backend events (`card.status.changed`, `board.updated`, etc.)
+4. **Real-time**: WebSocket connections managed in `src/hooks/useWebSocket.ts` — subscribe to backend events (`card.status.changed`, `board.updated`, etc.)
 
 5. **Component structure**:
    ```
@@ -55,7 +58,6 @@
    ├── pages/            # Route-level components
    ├── hooks/            # Shared custom hooks
    ├── api/              # API client, generated types, query keys
-   ├── realtime/         # WebSocket connection, event handlers
    ├── store/            # Global client state (Zustand/Context)
    ├── types/            # Shared TypeScript types (mirror backend DTOs)
    └── utils/            # Helpers, formatters
@@ -69,7 +71,7 @@
 - **React**: Functional components, hooks, prefer composition over inheritance
 - **Naming**: PascalCase for components/types, camelCase for hooks/utils, UPPER_SNAKE_CASE for constants
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`)
-- **Branching**: Feature branches from `main` (e.g., `KAN-9`, `feat/drag-drop`)
+- **Branching**: Feature branches from `main` (e.g., `KAN-10`, `feat/drag-drop`)
 - **PRs**: Required reviews, CI must pass, squash merge
 
 ---
@@ -103,33 +105,37 @@ openspec list --json               # List active changes
 
 ---
 
-## Development Commands
+## Development Commands (Local Only)
 
 ### Frontend (run from `3-course-sd-lifecycle-fe/`)
 ```bash
 # Install
-npm install
+pnpm install
 
-# Development
-npm run dev             # Vite dev server (http://localhost:5173)
+# Development (Vite dev server with HMR)
+pnpm dev             # http://localhost:5173
 
-# Build
-npm run build           # Production build to dist/
+# Production build
+pnpm build           # Output to dist/
 
-# Preview production build
-npm run preview
+# Preview production build locally
+pnpm preview
 
 # Test
-npm run test            # Vitest unit tests
-npm run test:ui         # Vitest UI
-npm run test:coverage   # Coverage report
+pnpm test            # Vitest unit tests
+pnpm test:ui         # Vitest UI
+pnpm test:coverage   # Coverage report
 
 # Lint/Format
-npm run lint            # ESLint
-npm run format          # Prettier
+pnpm lint            # ESLint
+pnpm format          # Prettier
 
 # Type Check
-npm run typecheck       # tsc --noEmit
+pnpm typecheck       # tsc --noEmit
+
+# Docker (local development)
+docker compose up --build        # Dev environment with HMR
+docker compose -f docker-compose.prod.yml up --build  # Prod-like environment
 ```
 
 ---
@@ -141,7 +147,7 @@ npm run typecheck       # tsc --noEmit
 | `auth` | `src/features/auth/` | Login, Register, OAuth callback, Profile |
 | `boards-cards` | `src/features/boards/`, `src/features/cards/` | BoardView, Column, Card, DragDrop, Labels, Comments |
 | `jira-sync` | `src/features/jira-sync/` | JiraConnection, IssueMapping, SyncStatus, ConflictResolution |
-| `realtime` | `src/realtime/` | WebSocketProvider, usePresence, useBoardUpdates |
+| `realtime` | `src/hooks/useWebSocket.ts` | WebSocketProvider, usePresence, useBoardUpdates |
 
 ---
 
@@ -162,18 +168,18 @@ npm run typecheck       # tsc --noEmit
 ### Refactoring
 - No OpenSpec change needed
 - Ensure type safety maintained
-- Run tests: `npm run test`
-- Run type check: `npm run typecheck`
+- Run tests: `pnpm test`
+- Run type check: `pnpm typecheck`
 
 ---
 
 ## Verification Checklist
 
 Before marking any task complete, verify:
-- [ ] TypeScript compiles without errors (`npm run typecheck`)
-- [ ] Tests pass (`npm run test`)
-- [ ] Lint passes (`npm run lint`)
-- [ ] Build succeeds (`npm run build`)
+- [ ] TypeScript compiles without errors (`pnpm typecheck`)
+- [ ] Tests pass (`pnpm test`)
+- [ ] Lint passes (`pnpm lint`)
+- [ ] Build succeeds (`pnpm build`)
 - [ ] Components match backend spec requirements
 - [ ] Real-time events handled correctly (if applicable)
 
@@ -184,7 +190,39 @@ Before marking any task complete, verify:
 - Backend repo: `../3-course-sd-lifecycle-be/`
 - Backend AGENTS.md: `../3-course-sd-lifecycle-be/AGENTS.md`
 - Backend OpenSpec: `../3-course-sd-lifecycle-be/openspec/`
-- Backend dev server: `npm run start:dev` (from backend repo)
+- Backend dev server: `pnpm start:dev` (from backend repo)
+
+---
+
+## CI/CD Pipeline (GitHub Actions) — Cost-Free Configuration
+
+**IMPORTANT**: The CI pipeline runs **only lint, typecheck, test, and build**. No Docker images are pushed to registries. No deployment jobs run. All development happens locally.
+
+```yaml
+# .github/workflows/ci.yml runs on push/PR to main and dev
+# Jobs: lint → typecheck → test → build
+# NO: docker push, deploy-staging, deploy-production
+```
+
+---
+
+## Git Workflow Rules
+
+### Conflict Resolution Branches
+- When conflicts exist between a feature branch and `dev`, create a conflict-resolution branch with `-dev` suffix (e.g., `KAN-10-dev` from `dev`)
+- Resolve all conflicts in the `-dev` branch
+- Open PR from `-dev` branch into `dev`
+- Open PR from original feature branch (e.g., `KAN-10`) into `main` only
+
+### Conflict Resolution Strategy
+- **If a change affects a different part of the code** (non-overlapping): select that version (no conflict)
+- **If a change affects the current part of the code** (overlapping): choose "both" if changes are complementary, or "select this one" based on context
+- **If ambiguous**: escalate to a human — do not choose at random
+
+### PR Management
+- Agents may **only**: open, close, modify, or comment on PRs
+- Agents are **PROHIBITED** from merging ANY PRs
+- Merging requires explicit human approval
 
 ---
 
