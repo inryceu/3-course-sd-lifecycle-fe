@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: boardsync-frontend-prod
+    ports:
+      - "127.0.0.1:80:80"
+    networks:
+      - boardsync_prod_network
+    depends_on:
+      - backend
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+  backend:
+    build:
+      context: ../3-course-sd-lifecycle-be
+      dockerfile: Dockerfile
+      target: production
+    container_name: boardsync-backend-prod
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - ../3-course-sd-lifecycle-be/.env.prod
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - boardsync_prod_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: boardsync-postgres-prod
+    environment:
+      POSTGRES_USER: boardsync
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: boardsync_prod
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - boardsync_postgres_prod_data:/var/lib/postgresql/data
+      - ../3-course-sd-lifecycle-be/init-db:/docker-entrypoint-initdb.d:ro
+    networks:
+      - boardsync_prod_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boardsync -d boardsync_prod"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    secrets:
+      - db_password
+
+networks:
+  boardsync_prod_network:
+    name: boardsync-prod-network
+    driver: bridge
+    external: true
+
+volumes:
+  boardsync_postgres_prod_data:
+    name: boardsync-postgres-prod-data
+    external: true
+
+secrets:
+  db_password:
+    file: ../3-course-sd-lifecycle-be/secrets/db_password.txt
