@@ -1,3 +1,5 @@
+import toast from 'react-hot-toast';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
 class ApiClient {
@@ -48,7 +50,11 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+      const errorMessage = error.message || `HTTP ${response.status}`;
+
+      toast.error(errorMessage);
+      
+      throw new Error(errorMessage);
     }
 
     if (response.status === 204) {

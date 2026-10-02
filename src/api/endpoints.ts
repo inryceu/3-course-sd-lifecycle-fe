@@ -1,6 +1,11 @@
 import { api } from './client';
 import type { User, Board, Card, Column, Label, JiraIssueMapping, SyncLog, AuthTokens, LoginCredentials, RegisterData } from '../types';
 
+// TODO (KAN-17): Currently using manual types from '../types'.
+// Once the backend provides the full openapi.yaml, these manual interfaces 
+// will be replaced by components from '../api/api.generated.ts' 
+// to ensure deterministic type safety.
+
 export const authApi = {
   login: (credentials: LoginCredentials) =>
     api.post<AuthTokens>('/auth/login', credentials),

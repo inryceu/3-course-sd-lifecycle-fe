@@ -1,0 +1,12 @@
+openapi: 3.0.0
+info:
+  title: BoardSync API (Stub)
+  version: 1.0.0
+  description: Full spec will be provided by backend later.
+paths:
+  /auth/login:
+    post:
+      summary: User login
+      responses:
+        '200':
+          description: Success

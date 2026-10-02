@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
+import { Toaster } from 'react-hot-toast';
 
 export function Layout() {
   const location = useLocation();
@@ -42,10 +43,7 @@ export function Layout() {
             <div className="flex items-center space-x-4">
               <div className="hidden sm:flex sm:items-center space-x-3">
                 <span className="text-sm text-gray-700">{user?.displayName}</span>
-                <button
-                  onClick={logout}
-                  className="btn-secondary text-sm"
-                >
+                <button onClick={logout} className="btn-secondary text-sm">
                   Log out
                 </button>
               </div>
@@ -55,6 +53,7 @@ export function Layout() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <Toaster position="top-right" />
         <Outlet />
       </main>
     </div>
