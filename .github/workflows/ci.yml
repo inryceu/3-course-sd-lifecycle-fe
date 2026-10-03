@@ -57,6 +57,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check generated API types are up to date
+        run: |
+          pnpm api:generate
+          git diff --exit-code src/api/api.generated.ts
+
       - name: Run typecheck
         run: pnpm typecheck
 

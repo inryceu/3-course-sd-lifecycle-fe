@@ -1,4 +1,40 @@
+import toast from 'react-hot-toast';
+import { tokenStorage } from './token-storage';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+
+/** Endpoints where a 401 means "wrong credentials" and must not trigger a redirect. */
+const AUTH_ENTRY_POINTS = ['/auth/login', '/auth/register'];
+
+interface ErrorBody {
+  statusCode?: number;
+  error?: string;
+  message?: string | string[];
+}
+
+export interface RequestOptions {
+  /** Do not show the global error toast (the caller renders the error itself). */
+  silent?: boolean;
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly messages: string[];
+
+  constructor(status: number, messages: string[]) {
+    super(messages.join(', '));
+    this.name = 'ApiError';
+    this.status = status;
+    this.messages = messages;
+  }
+}
+
+function toMessages(body: ErrorBody | null, status: number): string[] {
+  const message = body?.message;
+  if (Array.isArray(message) && message.length > 0) return message;
+  if (typeof message === 'string' && message) return [message];
+  return [`HTTP ${status}`];
+}
 
 class ApiClient {
   private baseUrl: string;
@@ -6,78 +42,83 @@ class ApiClient {
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-    this.loadToken();
-  }
-
-  private loadToken() {
-    this.accessToken = localStorage.getItem('accessToken');
+    this.accessToken = tokenStorage.get();
   }
 
   setToken(token: string | null) {
     this.accessToken = token;
     if (token) {
-      localStorage.setItem('accessToken', token);
+      tokenStorage.set(token);
     } else {
-      localStorage.removeItem('accessToken');
+      tokenStorage.clear();
     }
+  }
+
+  getToken(): string | null {
+    return this.accessToken;
   }
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    init: RequestInit = {},
+    options: RequestOptions = {}
   ): Promise<T> {
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(init.headers as Record<string, string> | undefined),
     };
 
     if (this.accessToken) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers,
-    });
-
-    if (response.status === 401) {
-      this.setToken(null);
-      window.location.href = '/login';
-      throw new Error('Unauthorized');
-    }
+    const response = await fetch(`${this.baseUrl}${endpoint}`, { ...init, headers });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+      const body = (await response.json().catch(() => null)) as ErrorBody | null;
+      const messages = toMessages(body, response.status);
+
+      if (response.status === 401 && !AUTH_ENTRY_POINTS.includes(endpoint.split('?')[0])) {
+        this.setToken(null);
+        window.location.href = '/login';
+        throw new ApiError(401, ['Unauthorized']);
+      }
+
+      if (!options.silent) {
+        toast.error(messages.join('\n'));
+      }
+      throw new ApiError(response.status, messages);
     }
 
     if (response.status === 204) {
       return undefined as T;
     }
 
-    return response.json();
+    return (await response.json()) as T;
   }
 
-  get<T>(endpoint: string) {
-    return this.request<T>(endpoint, { method: 'GET' });
+  get<T>(endpoint: string, options?: RequestOptions) {
+    return this.request<T>(endpoint, { method: 'GET' }, options);
   }
 
-  post<T>(endpoint: string, data: unknown) {
-    return this.request<T>(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+  post<T>(endpoint: string, data?: unknown, options?: RequestOptions) {
+    return this.request<T>(
+      endpoint,
+      { method: 'POST', body: data === undefined ? undefined : JSON.stringify(data) },
+      options
+    );
   }
 
-  patch<T>(endpoint: string, data: unknown) {
-    return this.request<T>(endpoint, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
+  put<T>(endpoint: string, data: unknown, options?: RequestOptions) {
+    return this.request<T>(endpoint, { method: 'PUT', body: JSON.stringify(data) }, options);
   }
 
-  delete<T>(endpoint: string) {
-    return this.request<T>(endpoint, { method: 'DELETE' });
+  patch<T>(endpoint: string, data: unknown, options?: RequestOptions) {
+    return this.request<T>(endpoint, { method: 'PATCH', body: JSON.stringify(data) }, options);
+  }
+
+  delete<T>(endpoint: string, options?: RequestOptions) {
+    return this.request<T>(endpoint, { method: 'DELETE' }, options);
   }
 }
 

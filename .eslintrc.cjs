@@ -17,6 +17,48 @@ module.exports = {
     tsconfigRootDir: __dirname,
   },
   plugins: ['react-refresh'],
+  overrides: [
+    {
+      // Feature isolation (docs/architecture/frontend-structure.md): other code may only use a
+      // feature through its index.ts public API.
+      files: ['src/**/*.{ts,tsx}'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: ['**/features/*/*', '@features/*/*', '@/features/*/*'],
+                message: 'Import a feature only through its index.ts public API.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      // Inside a feature, other features are reached through their public API only.
+      files: ['src/features/**/*.{ts,tsx}'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: ['**/features/*/*', '@features/*/*', '@/features/*/*'],
+                message: 'Import a feature only through its index.ts public API.',
+              },
+              {
+                group: ['../*/*', '!../../**'],
+                message:
+                  'Features must not reach into sibling features; use their index.ts public API.',
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
   rules: {
     'react-refresh/only-export-components': [
       'warn',

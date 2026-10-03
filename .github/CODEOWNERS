@@ -1,0 +1,29 @@
+# Code owners are requested for review automatically (see CONTRIBUTING.md).
+# Pavlo = @inryceu, Denys = @DenysP21, Edward = @2heist, Kyrylo = @KyryloBB
+# (Edward's handle is inferred from the collaborator list; confirm it.)
+
+# Default owner: the PM reviews everything not listed below.
+*                                   @inryceu
+
+# auth -> Denys
+/src/features/auth/                 @DenysP21
+/src/components/auth/               @DenysP21
+/docs/adr/0001-token-storage.md     @DenysP21
+
+# boards-cards -> Pavlo
+/src/features/boards/               @inryceu
+/src/features/cards/                @inryceu
+
+# jira-sync -> Edward
+/src/features/jira-sync/            @2heist
+
+# realtime and CI/DevOps -> Kyrylo
+/src/hooks/useWebSocket.ts          @KyryloBB
+/.github/workflows/                 @KyryloBB
+/Dockerfile                         @KyryloBB
+/docker-compose*.yml                @KyryloBB
+/nginx/                             @KyryloBB
+/scripts/setup-branch-protection.sh @KyryloBB
+
+# Contract copy is agreed by every module owner.
+/docs/api/                          @inryceu @DenysP21 @2heist @KyryloBB
