@@ -33,15 +33,6 @@ pnpm-debug.log*
 coverage
 .nyc_output
 
-# Docker
-Dockerfile*
-docker-compose*
-.dockerignore
-
-# CI/CD
-.github
-.gitlab-ci.yml
-
 # Misc
 .cache
 tmp
