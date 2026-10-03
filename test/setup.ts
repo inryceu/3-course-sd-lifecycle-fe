@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { vi, expect } from 'vitest';
+import { vi, afterEach } from 'vitest';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -15,12 +15,7 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-Object.defineProperty(window, 'localStorage', {
-  writable: true,
-  value: {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-  },
+afterEach(() => {
+  window.sessionStorage.clear();
+  window.localStorage.clear();
 });
