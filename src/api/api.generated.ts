@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Liveness and database readiness */
+        get: operations["getHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an account */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -13,25 +47,487 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** User login */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Success */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
+        /** Sign in with e-mail and password */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
+        /** Current user */
+        get: operations["getCurrentUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/boards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Boards the user belongs to */
+        get: operations["listBoards"];
+        put?: never;
+        /** Create a board with default columns; the creator becomes Admin */
+        post: operations["createBoard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/boards/{boardId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        /** Board with ordered columns and their ordered cards */
+        get: operations["getBoard"];
+        put?: never;
+        post?: never;
+        /** Delete the board and everything it owns (Admin) */
+        delete: operations["deleteBoard"];
+        options?: never;
+        head?: never;
+        /** Update board settings (Admin) */
+        patch: operations["updateBoard"];
+        trace?: never;
+    };
+    "/boards/{boardId}/columns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        /** Columns of a board ordered by position */
+        get: operations["listColumns"];
+        put?: never;
+        /** Add a column (Admin); appended unless a position is given */
+        post: operations["createColumn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/columns/{columnId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                columnId: components["parameters"]["ColumnId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete an empty column while at least three remain (Admin) */
+        delete: operations["deleteColumn"];
+        options?: never;
+        head?: never;
+        /** Rename or retype a column (Admin) */
+        patch: operations["updateColumn"];
+        trace?: never;
+    };
+    "/columns/{columnId}/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                columnId: components["parameters"]["ColumnId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Move a column to a position (Admin, transactional) */
+        patch: operations["reorderColumn"];
+        trace?: never;
+    };
+    "/columns/{columnId}/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                columnId: components["parameters"]["ColumnId"];
+            };
+            cookie?: never;
+        };
+        /** Cards of a column ordered by position */
+        get: operations["listCards"];
+        put?: never;
+        /** Create a card at the end of the column (Member, Admin) */
+        post: operations["createCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cards/{cardId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        /** Card */
+        get: operations["getCard"];
+        put?: never;
+        post?: never;
+        /** Delete a card (Member, Admin) */
+        delete: operations["deleteCard"];
+        options?: never;
+        head?: never;
+        /** Update card fields (Member, Admin) */
+        patch: operations["updateCard"];
+        trace?: never;
+    };
+    "/cards/{cardId}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Move a card to a column of the same board at a position (Member, Admin) */
+        patch: operations["moveCard"];
+        trace?: never;
+    };
+    "/cards/{cardId}/assignee": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Assign a board member to the card, or clear the assignee with null */
+        put: operations["assignCard"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/boards/{boardId}/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        /** Labels of a board */
+        get: operations["listLabels"];
+        put?: never;
+        /** Create a label (Member, Admin) */
+        post: operations["createLabel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/labels/{labelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                labelId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a label (Member, Admin) */
+        delete: operations["deleteLabel"];
+        options?: never;
+        head?: never;
+        /** Rename or recolour a label (Member, Admin) */
+        patch: operations["updateLabel"];
+        trace?: never;
+    };
+    "/cards/{cardId}/labels/{labelId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+                labelId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Attach a label to a card (Member, Admin) */
+        put: operations["attachLabel"];
+        post?: never;
+        /** Detach a label from a card (Member, Admin) */
+        delete: operations["detachLabel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cards/{cardId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        /** Comments of a card, oldest first */
+        get: operations["listComments"];
+        put?: never;
+        /** Comment on a card; mirrored to Jira when the card is linked (Member, Admin) */
+        post: operations["createComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/boards/{boardId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        /** Members and their roles */
+        get: operations["listMembers"];
+        put?: never;
+        /** Invite a registered user by e-mail with a role (Admin) */
+        post: operations["inviteMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/boards/{boardId}/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+                userId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a member (Admin) */
+        delete: operations["removeMember"];
+        options?: never;
+        head?: never;
+        /** Change a member's role; a board keeps at least one Admin (Admin) */
+        patch: operations["changeMemberRole"];
+        trace?: never;
+    };
+    "/jira/oauth/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Start the OAuth 2.0 (3LO) flow for a board (Admin)
+         * @description Returns the Atlassian authorise URL containing `state` and a PKCE `code_challenge`.
+         *     State and verifier are stored for 10 minutes. The client navigates to the URL.
+         */
+        get: operations["startJiraOAuth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/oauth/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Complete the flow with the code and state Atlassian redirected to the frontend with
+         * @description Called by the frontend with the user's bearer token. The state must belong to the caller,
+         *     be unexpired and unused. A denied consent (`error`) is answered with 400.
+         */
+        get: operations["completeJiraOAuth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Connection status of a board (any member) */
+        get: operations["getJiraConnection"];
+        put?: never;
+        post?: never;
+        /** Disconnect and delete stored credentials (Admin) */
+        delete: operations["disconnectJira"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import open Jira issues of the linked project as cards (Admin) */
+        post: operations["importJiraIssues"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Card to issue mappings of a board */
+        get: operations["listJiraMappings"];
+        put?: never;
+        /** Link a card to an existing Jira issue (Member, Admin) */
+        post: operations["createJiraMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive Jira issue events (verified with the webhook secret) */
+        post: operations["receiveJiraWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/conflicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Logged synchronisation conflicts of a board (Admin) */
+        get: operations["listJiraConflicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** In-app notifications of the current user, newest first */
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/{notificationId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a notification as read */
+        post: operations["markNotificationRead"];
         delete?: never;
         options?: never;
         head?: never;
@@ -41,12 +537,1532 @@ export interface paths {
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
-    responses: never;
-    parameters: never;
+    schemas: {
+        Error: {
+            /** @example 400 */
+            statusCode: number;
+            /** @example Bad Request */
+            error?: string;
+            /** @description A message, or one message per invalid field */
+            message: string | string[];
+            details?: {
+                [key: string]: unknown;
+            };
+        };
+        Health: {
+            /** @enum {string} */
+            status: "ok" | "error";
+            /** @enum {string} */
+            database: "up" | "down";
+            /** Format: date-time */
+            timestamp?: string;
+            uptime?: number;
+        };
+        /** @enum {string} */
+        BoardRole: "ADMIN" | "MEMBER" | "VIEWER";
+        /** @enum {string} */
+        ColumnType: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
+        User: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            displayName: string;
+        };
+        RegisterRequest: {
+            /** Format: email */
+            email: string;
+            /** Format: password */
+            password: string;
+            displayName: string;
+        };
+        LoginRequest: {
+            /** Format: email */
+            email: string;
+            /** Format: password */
+            password: string;
+        };
+        AuthResponse: {
+            accessToken: string;
+            /** @description Lifetime in seconds (at most 3600) */
+            expiresIn: number;
+            user: components["schemas"]["User"];
+        };
+        Board: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            description?: string | null;
+            jiraProjectKey?: string | null;
+            myRole: components["schemas"]["BoardRole"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        BoardDetail: components["schemas"]["Board"] & {
+            columns: components["schemas"]["ColumnWithCards"][];
+        };
+        CreateBoardRequest: {
+            title: string;
+            description?: string;
+            jiraProjectKey?: string;
+        };
+        UpdateBoardRequest: {
+            title?: string;
+            description?: string | null;
+            jiraProjectKey?: string | null;
+        };
+        Column: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            boardId: string;
+            title: string;
+            type: components["schemas"]["ColumnType"];
+            position: number;
+        };
+        ColumnWithCards: components["schemas"]["Column"] & {
+            cards: components["schemas"]["Card"][];
+        };
+        CreateColumnRequest: {
+            title: string;
+            type?: components["schemas"]["ColumnType"];
+            position?: number;
+        };
+        UpdateColumnRequest: {
+            title?: string;
+            type?: components["schemas"]["ColumnType"];
+        };
+        ReorderColumnRequest: {
+            position: number;
+        };
+        Card: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            boardId: string;
+            /** Format: uuid */
+            columnId: string;
+            title: string;
+            description?: string | null;
+            /** Format: date-time */
+            deadline?: string | null;
+            jiraIssueKey?: string | null;
+            position: number;
+            /** Format: uuid */
+            assigneeId?: string | null;
+            labelIds: string[];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateCardRequest: {
+            title: string;
+            description?: string;
+            /** Format: date-time */
+            deadline?: string;
+            /** Format: uuid */
+            assigneeId?: string;
+            labelIds?: string[];
+        };
+        UpdateCardRequest: {
+            title?: string;
+            description?: string | null;
+            /** Format: date-time */
+            deadline?: string | null;
+        };
+        MoveCardRequest: {
+            /** Format: uuid */
+            columnId: string;
+            position: number;
+        };
+        AssignCardRequest: {
+            /** Format: uuid */
+            assigneeId: string | null;
+        };
+        Label: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            boardId: string;
+            name: string;
+            color: string;
+        };
+        CreateLabelRequest: {
+            name: string;
+            color?: string;
+        };
+        UpdateLabelRequest: {
+            name?: string;
+            color?: string;
+        };
+        Comment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            cardId: string;
+            /** Format: uuid */
+            authorId: string;
+            text: string;
+            syncedToJira: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CreateCommentRequest: {
+            text: string;
+        };
+        CommentPage: {
+            items: components["schemas"]["Comment"][];
+            nextCursor?: string | null;
+        };
+        Member: {
+            /** Format: uuid */
+            boardId: string;
+            /** Format: uuid */
+            userId: string;
+            role: components["schemas"]["BoardRole"];
+            /** Format: email */
+            email: string;
+            displayName: string;
+            /** Format: date-time */
+            invitedAt: string;
+        };
+        InviteMemberRequest: {
+            /** Format: email */
+            email: string;
+            /** @enum {string} */
+            role: "MEMBER" | "VIEWER";
+        };
+        ChangeMemberRoleRequest: {
+            role: components["schemas"]["BoardRole"];
+        };
+        JiraOAuthStartResponse: {
+            /** Format: uri */
+            authorizeUrl: string;
+        };
+        JiraOAuthCallbackResponse: {
+            connected: boolean;
+            cloudId: string;
+            /** Format: uri */
+            siteUrl: string;
+        };
+        /** @description Never contains tokens */
+        JiraConnectionStatus: {
+            connected: boolean;
+            /** Format: uuid */
+            boardId: string;
+            cloudId?: string | null;
+            /** Format: uri */
+            siteUrl?: string | null;
+            scopes?: string[];
+            /** Format: date-time */
+            expiresAt?: string | null;
+            /** Format: date-time */
+            connectedAt?: string | null;
+        };
+        JiraImportRequest: {
+            /** Format: uuid */
+            boardId: string;
+            projectKey?: string;
+        };
+        JiraImportResult: {
+            imported: number;
+            skipped: number;
+        };
+        JiraMapping: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            boardId: string;
+            /** Format: uuid */
+            cardId: string;
+            jiraIssueKey: string;
+            jiraIssueId: string;
+            jiraProjectKey: string;
+        };
+        CreateJiraMappingRequest: {
+            /** Format: uuid */
+            cardId: string;
+            jiraIssueKey: string;
+        };
+        JiraConflict: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            boardId: string;
+            /** Format: uuid */
+            cardId: string;
+            jiraIssueKey: string;
+            boardStatus: string;
+            jiraStatus: string;
+            /** Format: date-time */
+            detectedAt: string;
+            resolution?: string | null;
+        };
+        JiraConflictPage: {
+            items: components["schemas"]["JiraConflict"][];
+            nextCursor?: string | null;
+        };
+        Notification: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            type: "deadline.reminder" | "jira.conflict" | "board.invited";
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            readAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        NotificationPage: {
+            items: components["schemas"]["Notification"][];
+            nextCursor?: string | null;
+        };
+    };
+    responses: {
+        /** @description Validation failed or the request is not acceptable in the current state */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Missing, invalid or expired token, or wrong credentials */
+        Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The user's board role does not allow this operation */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The resource does not exist or the user is not a member of its board */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The request conflicts with the current state */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+    };
+    parameters: {
+        BoardId: string;
+        ColumnId: string;
+        CardId: string;
+        BoardIdQuery: string;
+        /** @description Page size */
+        Limit: number;
+        /** @description Opaque cursor from the previous page's `nextCursor` */
+        Cursor: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    getHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service and database are up */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+            /** @description Database is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Account created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getCurrentUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The authenticated user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listBoards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boards ordered by creation time */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Board"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBoardRequest"];
+            };
+        };
+        responses: {
+            /** @description Board with its three default columns */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Board detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBoardRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated board */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Board"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listColumns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Columns */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Column"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createColumn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateColumnRequest"];
+            };
+        };
+        responses: {
+            /** @description Created column */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Column"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteColumn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                columnId: components["parameters"]["ColumnId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateColumn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                columnId: components["parameters"]["ColumnId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateColumnRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated column */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Column"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    reorderColumn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                columnId: components["parameters"]["ColumnId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderColumnRequest"];
+            };
+        };
+        responses: {
+            /** @description Columns of the board in their new order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Column"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listCards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                columnId: components["parameters"]["ColumnId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                columnId: components["parameters"]["ColumnId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCardRequest"];
+            };
+        };
+        responses: {
+            /** @description Created card */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCardRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    moveCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveCardRequest"];
+            };
+        };
+        responses: {
+            /** @description Moved card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    assignCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignCardRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listLabels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Labels */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Label"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createLabel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLabelRequest"];
+            };
+        };
+        responses: {
+            /** @description Created label */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Label"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteLabel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                labelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateLabel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                labelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLabelRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated label */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Label"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    attachLabel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+                labelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    detachLabel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+                labelId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listComments: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from the previous page's `nextCursor` */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of comments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Created comment */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Comment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Members */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    inviteMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description Created membership */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    removeMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changeMemberRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                boardId: components["parameters"]["BoardId"];
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeMemberRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated membership */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    startJiraOAuth: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorise URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraOAuthStartResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    completeJiraOAuth: {
+        parameters: {
+            query: {
+                code?: string;
+                state: string;
+                /** @description Provider error such as `access_denied` */
+                error?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraOAuthCallbackResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description Atlassian could not be reached */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getJiraConnection: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Status without tokens */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraConnectionStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    disconnectJira: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disconnected */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    importJiraIssues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Import result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraImportResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listJiraMappings: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mappings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraMapping"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createJiraMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateJiraMappingRequest"];
+            };
+        };
+        responses: {
+            /** @description Mapping */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraMapping"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    receiveJiraWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Accepted for processing */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listJiraConflicts: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+                /** @description Page size */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from the previous page's `nextCursor` */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of conflicts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraConflictPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from the previous page's `nextCursor` */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of notifications */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    markNotificationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notificationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated notification */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Notification"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+}
