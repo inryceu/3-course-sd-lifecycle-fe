@@ -33,6 +33,11 @@ RUN pnpm install --frozen-lockfile --prod=false
 # -----------------------------------------------------------------------------
 FROM deps AS builder
 
+# Same-origin defaults so the SPA works behind the nginx proxy of the full stack.
+ARG VITE_API_URL=/api/v1
+ARG VITE_WS_URL=
+ENV VITE_API_URL=$VITE_API_URL VITE_WS_URL=$VITE_WS_URL
+
 COPY . .
 
 RUN pnpm build
@@ -64,5 +69,7 @@ COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY nginx/conf.d /etc/nginx/conf.d
 
 EXPOSE 80
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 CMD wget -qO- http://127.0.0.1/health || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
