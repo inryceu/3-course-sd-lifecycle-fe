@@ -64,6 +64,10 @@ CMD ["pnpm", "dev", "--host", "0.0.0.0"]
 # -----------------------------------------------------------------------------
 FROM nginx:alpine AS production
 
+# The stock default.conf also listens on :80 for server_name localhost and, being included first,
+# would shadow frontend.conf (no API/WebSocket proxy, no /health).
+RUN rm -f /etc/nginx/conf.d/default.conf
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY nginx/conf.d /etc/nginx/conf.d

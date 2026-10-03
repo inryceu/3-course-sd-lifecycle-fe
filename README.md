@@ -69,6 +69,8 @@ docker compose --env-file .env.full -f docker-compose.full.yml up --build
 
 The web UI is then on http://localhost:8080; nginx proxies `/api/` and `/socket.io/` (WebSocket,
 namespace `/realtime`) to the backend, so the SPA uses same-origin URLs.
+If port 8080 or 3000 is already used on your machine, set `WEB_PORT` / `BACKEND_PORT` in `.env.full`
+(the web UI then is on `http://localhost:<WEB_PORT>`).
 
 ## Environment variables
 
