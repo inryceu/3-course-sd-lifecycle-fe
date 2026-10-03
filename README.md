@@ -9,7 +9,7 @@ BoardSync gives teams a fast, visual kanban board that stays in sync with Jira a
 ## Approach
 
 - **Spec-driven development.** UI features are implemented against the agreed requirements/API spec, not ad hoc (see the project's *Специфікація вимог* document).
-- **Modular structure.** Feature-based folders (`board/`, `card/`, `auth/`, `jira/`, `realtime/`), each with its own components, hooks and state, mirroring the backend's module boundaries.
+- **Modular structure.** Feature-based folders (`auth/`, `boards/`, `cards/`, `jira-sync/`, plus the `realtime` hook; see `docs/architecture/frontend-structure.md`), each with its own components, hooks and state, mirroring the backend's module boundaries.
 - **Real-time first.** The board subscribes to a WebSocket channel so every connected user sees card moves, comments and Jira-driven status changes instantly, without a page reload.
 
 ## Key features
@@ -41,26 +41,55 @@ BoardSync gives teams a fast, visual kanban board that stays in sync with Jira a
 
 ## Getting started
 
-> 🚧 Placeholder — to be filled in once the initial project scaffold is committed.
-
 ```bash
-# clone
-git clone <repo-url>
-cd boardsync-frontend
+# install dependencies (pnpm 9, Node 20+)
+pnpm install
 
-# install dependencies
-npm install
+# run in development (Vite on http://localhost:5173, expects the backend on :3000)
+cp .env.example .env.local
+pnpm dev
 
-# run in development
-npm run dev
+# checks
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
-# run with Docker
+# run with Docker (frontend dev compose)
 docker compose up --build
 ```
 
+### Run the full stack
+
+Postgres, backend (migrations applied) and this frontend start together from the **backend**
+repository, with both repositories checked out side by side:
+
+```bash
+cd ../3-course-sd-lifecycle-be
+cp .env.full.example .env.full   # fill in the secrets
+docker compose --env-file .env.full -f docker-compose.full.yml up --build
+```
+
+The web UI is then on http://localhost:8080; nginx proxies `/api/` and `/socket.io/` (WebSocket,
+namespace `/realtime`) to the backend, so the SPA uses same-origin URLs.
+
 ## Environment variables
 
-> 🚧 To be documented: API base URL, WebSocket URL, Jira OAuth client id.
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `VITE_API_URL` | `http://localhost:3000/api/v1` | REST base URL. The Docker image is built with `/api/v1` (same origin). |
+| `VITE_WS_URL` | page origin | Origin of the Socket.IO server; the client connects to `<origin>/realtime`. Empty = same origin. |
+
+Values are read at build time (`import.meta.env`). See `.env.example`.
+
+## API contract and generated types
+
+The contract lives in the backend repository (`docs/api/openapi.yaml`, `docs/api/ws-events.md`).
+This repo keeps a synced copy and generated types:
+
+```bash
+pnpm api:sync       # copy the spec from ../3-course-sd-lifecycle-be (override with BACKEND_REPO=...)
+pnpm api:generate   # docs/api/openapi.yaml -> src/api/api.generated.ts (deterministic)
+```
+
+CI regenerates the types and fails if `src/api/api.generated.ts` is out of date.
 
 ## User guide
 

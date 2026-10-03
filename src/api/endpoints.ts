@@ -1,112 +1,97 @@
 import { api } from './client';
-import type { User, Board, Card, Column, Label, JiraIssueMapping, SyncLog, AuthTokens, LoginCredentials, RegisterData } from '../types';
+import type { RequestOptions } from './client';
+import type { components } from './api.generated';
+import type {
+  AuthResponse,
+  Board,
+  BoardDetail,
+  Card,
+  Column,
+  JiraConnectionStatus,
+  JiraMapping,
+  JiraOAuthCallbackResponse,
+  JiraOAuthStartResponse,
+  LoginRequest,
+  RegisterRequest,
+  User,
+} from './schema';
 
-// TODO (KAN-17): Currently using manual types from '../types'.
-// Once the backend provides the full openapi.yaml, these manual interfaces 
-// will be replaced by components from '../api/api.generated.ts' 
-// to ensure deterministic type safety.
+type Schemas = components['schemas'];
+
+/** Routes and shapes follow docs/api/openapi.yaml (synced from the backend). */
 
 export const authApi = {
-  login: (credentials: LoginCredentials) =>
-    api.post<AuthTokens>('/auth/login', credentials),
+  login: (data: LoginRequest) => api.post<AuthResponse>('/auth/login', data, { silent: true }),
 
-  register: (data: RegisterData) =>
-    api.post<AuthTokens>('/auth/register', data),
+  register: (data: RegisterRequest) =>
+    api.post<AuthResponse>('/auth/register', data, { silent: true }),
 
-  refresh: (refreshToken: string) =>
-    api.post<AuthTokens>('/auth/refresh', { refreshToken }),
-
-  logout: () =>
-    api.post<void>('/auth/logout', {}),
-
-  getProfile: () =>
-    api.get<User>('/auth/profile'),
+  me: (options?: RequestOptions) => api.get<User>('/auth/me', options),
 };
 
 export const boardsApi = {
-  list: () =>
-    api.get<Board[]>('/boards'),
+  list: () => api.get<Board[]>('/boards'),
 
-  get: (id: string) =>
-    api.get<Board>(`/boards/${id}`),
+  get: (boardId: string) => api.get<BoardDetail>(`/boards/${boardId}`),
 
-  create: (data: { title: string; jiraProjectKey?: string }) =>
-    api.post<Board>('/boards', data),
+  create: (data: Schemas['CreateBoardRequest']) => api.post<BoardDetail>('/boards', data),
 
-  update: (id: string, data: { title?: string; jiraProjectKey?: string }) =>
-    api.patch<Board>(`/boards/${id}`, data),
+  update: (boardId: string, data: Schemas['UpdateBoardRequest']) =>
+    api.patch<Board>(`/boards/${boardId}`, data),
 
-  delete: (id: string) =>
-    api.delete<void>(`/boards/${id}`),
-
-  inviteMember: (boardId: string, email: string, role: string) =>
-    api.post<void>(`/boards/${boardId}/members`, { email, role }),
+  delete: (boardId: string) => api.delete<void>(`/boards/${boardId}`),
 };
 
 export const columnsApi = {
-  listByBoard: (boardId: string) =>
-    api.get<Column[]>(`/boards/${boardId}/columns`),
+  listByBoard: (boardId: string) => api.get<Column[]>(`/boards/${boardId}/columns`),
 
-  create: (boardId: string, data: { title: string; type: string }) =>
+  create: (boardId: string, data: Schemas['CreateColumnRequest']) =>
     api.post<Column>(`/boards/${boardId}/columns`, data),
 
-  update: (id: string, data: { title?: string; type?: string; position?: number }) =>
-    api.patch<Column>(`/columns/${id}`, data),
+  update: (columnId: string, data: Schemas['UpdateColumnRequest']) =>
+    api.patch<Column>(`/columns/${columnId}`, data),
 
-  reorder: (id: string, position: number) =>
-    api.patch<Column>(`/columns/${id}/reorder`, { position }),
+  reorder: (columnId: string, position: number) =>
+    api.patch<Column[]>(`/columns/${columnId}/reorder`, { position }),
 
-  delete: (id: string) =>
-    api.delete<void>(`/columns/${id}`),
+  delete: (columnId: string) => api.delete<void>(`/columns/${columnId}`),
 };
 
 export const cardsApi = {
-  listByColumn: (columnId: string) =>
-    api.get<Card[]>(`/columns/${columnId}/cards`),
+  listByColumn: (columnId: string) => api.get<Card[]>(`/columns/${columnId}/cards`),
 
-  get: (id: string) =>
-    api.get<Card>(`/cards/${id}`),
+  get: (cardId: string) => api.get<Card>(`/cards/${cardId}`),
 
-  create: (columnId: string, data: { title: string; description?: string; labelIds?: string[]; deadline?: string }) =>
+  create: (columnId: string, data: Schemas['CreateCardRequest']) =>
     api.post<Card>(`/columns/${columnId}/cards`, data),
 
-  update: (id: string, data: Partial<Card>) =>
-    api.patch<Card>(`/cards/${id}`, data),
+  update: (cardId: string, data: Schemas['UpdateCardRequest']) =>
+    api.patch<Card>(`/cards/${cardId}`, data),
 
-  move: (id: string, columnId: string, position: number) =>
-    api.patch<Card>(`/cards/${id}/move`, { columnId, position }),
+  move: (cardId: string, data: Schemas['MoveCardRequest']) =>
+    api.patch<Card>(`/cards/${cardId}/move`, data),
 
-  delete: (id: string) =>
-    api.delete<void>(`/cards/${id}`),
+  delete: (cardId: string) => api.delete<void>(`/cards/${cardId}`),
 };
 
-export const labelsApi = {
-  list: () =>
-    api.get<Label[]>('/labels'),
+export const jiraApi = {
+  startOAuth: (boardId: string) =>
+    api.get<JiraOAuthStartResponse>(`/jira/oauth/start?boardId=${encodeURIComponent(boardId)}`),
 
-  create: (data: { name: string; color: string }) =>
-    api.post<Label>('/labels', data),
+  completeOAuth: (params: { code?: string; state: string; error?: string }) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) query.set(key, value);
+    });
+    return api.get<JiraOAuthCallbackResponse>(`/jira/oauth/callback?${query.toString()}`);
+  },
 
-  update: (id: string, data: { name?: string; color?: string }) =>
-    api.patch<Label>(`/labels/${id}`, data),
+  connection: (boardId: string) =>
+    api.get<JiraConnectionStatus>(`/jira/connection?boardId=${encodeURIComponent(boardId)}`),
 
-  delete: (id: string) =>
-    api.delete<void>(`/labels/${id}`),
-};
+  disconnect: (boardId: string) =>
+    api.delete<void>(`/jira/connection?boardId=${encodeURIComponent(boardId)}`),
 
-export const jiraSyncApi = {
   listMappings: (boardId: string) =>
-    api.get<JiraIssueMapping[]>(`/jira-sync/board/${boardId}`),
-
-  getMapping: (cardId: string) =>
-    api.get<JiraIssueMapping>(`/jira-sync/card/${cardId}`),
-
-  createMapping: (data: { boardId: string; cardId: string; jiraIssueKey: string; jiraIssueId: string; jiraProjectKey: string }) =>
-    api.post<JiraIssueMapping>('/jira-sync/map', data),
-
-  syncCard: (cardId: string) =>
-    api.post<void>(`/jira-sync/sync/${cardId}`, {}),
-
-  getSyncLogs: (boardId: string) =>
-    api.get<SyncLog[]>(`/jira-sync/board/${boardId}/logs`),
+    api.get<JiraMapping[]>(`/jira/mappings?boardId=${encodeURIComponent(boardId)}`),
 };

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { api } from './client';
 import toast from 'react-hot-toast';
+import { api, ApiError } from './client';
 
 vi.mock('react-hot-toast', () => ({
   default: {
@@ -8,68 +8,91 @@ vi.mock('react-hot-toast', () => ({
   },
 }));
 
-describe('ApiClient Interceptor & Error Handling', () => {
+function respond(status: number, body?: unknown) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => (body === undefined ? Promise.reject(new Error('no body')) : Promise.resolve(body)),
+  } as Response;
+}
+
+describe('ApiClient', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
-    localStorage.clear();
+    vi.mocked(toast.error).mockClear();
+    api.setToken(null);
     vi.stubGlobal('fetch', vi.fn());
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.restoreAllMocks();
   });
 
-  it('should automatically attach Authorization header if token exists', async () => {
-    const mockToken = 'test-jwt-token';
-    api.setToken(mockToken);
-
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ success: true }),
-    } as Response);
+  it('attaches the Authorization header and persists the token in sessionStorage', async () => {
+    api.setToken('test-jwt-token');
+    vi.mocked(fetch).mockResolvedValueOnce(respond(200, { ok: true }));
 
     await api.get('/test-endpoint');
 
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/test-endpoint'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: `Bearer ${mockToken}`,
-        }),
-      })
+    expect(window.sessionStorage.getItem('accessToken')).toBe('test-jwt-token');
+    expect(window.localStorage.getItem('accessToken')).toBeNull();
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toContain('/test-endpoint');
+    expect((init?.headers as Record<string, string>)['Authorization']).toBe(
+      'Bearer test-jwt-token'
     );
   });
 
-  it('should trigger toast.error on non-2xx HTTP responses', async () => {
-    api.setToken(null);
-
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: () => Promise.resolve({ message: 'Internal Server Error' }),
-    } as Response);
+  it('shows a toast and throws ApiError on non-2xx responses', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(respond(500, { message: 'Internal Server Error' }));
 
     await expect(api.get('/error-endpoint')).rejects.toThrow('Internal Server Error');
     expect(toast.error).toHaveBeenCalledWith('Internal Server Error');
   });
 
-  it('should clear token and redirect on 401 Unauthorized', async () => {
+  it('joins validation messages when the backend returns an array', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(respond(400, { message: ['a is bad', 'b is bad'] }));
+
+    const error = await api.post('/x', {}).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).messages).toEqual(['a is bad', 'b is bad']);
+    expect(toast.error).toHaveBeenCalledWith('a is bad\nb is bad');
+  });
+
+  it('does not toast when silent is set', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(respond(409, { message: 'Email already registered' }));
+
+    await expect(api.post('/auth/register', {}, { silent: true })).rejects.toThrow(
+      'Email already registered'
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('clears the token and redirects to /login on 401 for protected endpoints', async () => {
     api.setToken('expired-token');
+    const location = { href: '' };
+    vi.stubGlobal('location', location);
+    vi.mocked(fetch).mockResolvedValueOnce(respond(401));
 
-    const removeItemSpy = vi.spyOn(localStorage, 'removeItem');
-    const locationMock = { href: '' };
-    vi.stubGlobal('location', locationMock);
+    await expect(api.get('/boards')).rejects.toThrow('Unauthorized');
 
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 401,
-    } as Response);
+    expect(window.sessionStorage.getItem('accessToken')).toBeNull();
+    expect(location.href).toBe('/login');
+  });
 
-    await expect(api.get('/protected-endpoint')).rejects.toThrow('Unauthorized');
+  it('does not redirect on 401 from the login endpoint', async () => {
+    const location = { href: '' };
+    vi.stubGlobal('location', location);
+    vi.mocked(fetch).mockResolvedValueOnce(respond(401, { message: 'Invalid credentials' }));
 
-    expect(removeItemSpy).toHaveBeenCalledWith('accessToken');
-    expect(locationMock.href).toBe('/login');
+    await expect(api.post('/auth/login', {}, { silent: true })).rejects.toThrow(
+      'Invalid credentials'
+    );
+    expect(location.href).toBe('');
+  });
+
+  it('returns undefined for 204 responses', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(respond(204));
+    await expect(api.delete('/boards/1')).resolves.toBeUndefined();
   });
 });

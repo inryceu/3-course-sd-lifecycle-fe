@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../../features/auth/AuthContext';
+import { useAuth } from '../../features/auth';
 import { Toaster } from 'react-hot-toast';
 
 export function Layout() {
