@@ -24,8 +24,8 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
-      '/realtime': {
-        target: 'http://localhost:3001',
+      '/socket.io': {
+        target: 'http://localhost:3000',
         ws: true,
       },
     },

@@ -1,24 +1,36 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import type { FormEvent } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { validateLogin } from './validation';
+import type { FieldErrors, LoginField } from './validation';
+import { ApiError } from '../../api/client';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<LoginField>>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const errors = validateLogin({ email, password });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/boards');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+      await login(email.trim(), password);
+      navigate(from ?? '/boards', { replace: true });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -38,33 +50,49 @@ export function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
           <div>
-            <label htmlFor="email" className="label">Email</label>
+            <label htmlFor="email" className="label">
+              Email
+            </label>
             <input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="input"
-              required
               autoComplete="email"
               disabled={loading}
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={fieldErrors.email ? 'email-error' : undefined}
             />
+            {fieldErrors.email && (
+              <p id="email-error" className="mt-1 text-sm text-red-600">
+                {fieldErrors.email}
+              </p>
+            )}
           </div>
 
           <div>
-            <label htmlFor="password" className="label">Password</label>
+            <label htmlFor="password" className="label">
+              Password
+            </label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="input"
-              required
               autoComplete="current-password"
               disabled={loading}
+              aria-invalid={!!fieldErrors.password}
+              aria-describedby={fieldErrors.password ? 'password-error' : undefined}
             />
+            {fieldErrors.password && (
+              <p id="password-error" className="mt-1 text-sm text-red-600">
+                {fieldErrors.password}
+              </p>
+            )}
           </div>
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>
@@ -73,7 +101,10 @@ export function LoginPage() {
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-600">
-          Don't have an account? <Link to="/register" className="text-primary-600 hover:underline">Sign up</Link>
+          Don&apos;t have an account?{' '}
+          <Link to="/register" className="text-primary-600 hover:underline">
+            Sign up
+          </Link>
         </p>
       </div>
     </div>

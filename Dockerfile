@@ -33,6 +33,11 @@ RUN pnpm install --frozen-lockfile --prod=false
 # -----------------------------------------------------------------------------
 FROM deps AS builder
 
+# Same-origin defaults so the SPA works behind the nginx proxy of the full stack.
+ARG VITE_API_URL=/api/v1
+ARG VITE_WS_URL=
+ENV VITE_API_URL=$VITE_API_URL VITE_WS_URL=$VITE_WS_URL
+
 COPY . .
 
 RUN pnpm build
@@ -59,10 +64,16 @@ CMD ["pnpm", "dev", "--host", "0.0.0.0"]
 # -----------------------------------------------------------------------------
 FROM nginx:alpine AS production
 
+# The stock default.conf also listens on :80 for server_name localhost and, being included first,
+# would shadow frontend.conf (no API/WebSocket proxy, no /health).
+RUN rm -f /etc/nginx/conf.d/default.conf
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY nginx/conf.d /etc/nginx/conf.d
 
 EXPOSE 80
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 CMD wget -qO- http://127.0.0.1/health || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

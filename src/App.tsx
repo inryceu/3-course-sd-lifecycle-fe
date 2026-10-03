@@ -1,11 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './features/auth/AuthContext';
+import { AuthProvider, useAuth, LoginPage, RegisterPage } from './features/auth';
 import { Layout } from './components/layout/Layout';
-import { LoginPage } from './features/auth/LoginPage';
-import { RegisterPage } from './features/auth/RegisterPage';
-import { BoardsPage } from './features/boards/BoardsPage';
-import { BoardPage } from './features/boards/BoardPage';
-import { JiraSyncPage } from './features/jira-sync/JiraSyncPage';
+import { BoardsPage, BoardPage } from './features/boards';
+import { JiraSyncPage } from './features/jira-sync';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 function AppRoutes() {
