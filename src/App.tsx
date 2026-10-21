@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth, LoginPage, RegisterPage } from './features/auth';
 import { Layout } from './components/layout/Layout';
 import { BoardsPage, BoardPage } from './features/boards';
-import { JiraSyncPage } from './features/jira-sync';
+import { JiraSyncPage, JiraCallbackPage } from './features/jira-sync';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 function AppRoutes() {
@@ -26,6 +26,7 @@ function AppRoutes() {
         <Route path="/boards" element={<BoardsPage />} />
         <Route path="/boards/:boardId" element={<BoardPage />} />
         <Route path="/jira-sync" element={<JiraSyncPage />} />
+        <Route path="/jira/callback" element={<JiraCallbackPage />} />
       </Route>
       <Route path="/" element={<Navigate to="/boards" replace />} />
       <Route path="*" element={<Navigate to="/boards" replace />} />

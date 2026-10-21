@@ -83,7 +83,10 @@ export const jiraApi = {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) query.set(key, value);
     });
-    return api.get<JiraOAuthCallbackResponse>(`/jira/oauth/callback?${query.toString()}`);
+    // The callback page renders the error itself.
+    return api.get<JiraOAuthCallbackResponse>(`/jira/oauth/callback?${query.toString()}`, {
+      silent: true,
+    });
   },
 
   connection: (boardId: string) =>
