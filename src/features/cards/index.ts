@@ -1,1 +1,1 @@
-export {};
+export { CardDialog } from './CardDialog';
