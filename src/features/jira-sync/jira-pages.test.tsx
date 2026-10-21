@@ -77,12 +77,18 @@ describe('JiraCallbackPage', () => {
     );
   });
 
-  it('shows a denied consent as a failure', async () => {
+  it('shows a denied consent as a failure and keeps the link to the board', async () => {
+    sessionStorage.setItem(JIRA_BOARD_KEY, 'b1');
     api.jira.completeOAuth.mockRejectedValue(new ApiError(400, ['Jira authorisation was denied']));
 
     renderWithProviders(<JiraCallbackPage />, '/jira/callback?error=access_denied&state=s1');
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Jira authorisation was denied');
     expect(screen.getByRole('link', { name: 'Try again' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open the board' })).toHaveAttribute(
+      'href',
+      '/boards/b1'
+    );
+    expect(sessionStorage.getItem(JIRA_BOARD_KEY)).toBeNull();
   });
 });

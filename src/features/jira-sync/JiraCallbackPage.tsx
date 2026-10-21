@@ -15,7 +15,8 @@ export function JiraCallbackPage() {
   const [params] = useSearchParams();
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'pending' });
   const started = useRef(false);
-  const boardId = sessionStorage.getItem(JIRA_BOARD_KEY);
+  // Read once: the key is removed when the call finishes.
+  const [boardId] = useState(() => sessionStorage.getItem(JIRA_BOARD_KEY));
 
   useEffect(() => {
     // A state is single-use: never send it twice (React strict mode runs effects twice).
