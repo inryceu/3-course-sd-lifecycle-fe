@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { DragEvent, FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { cardsApi, columnsApi } from '../../api/endpoints';
-import type { Card, ColumnType, ColumnWithCards } from '../../api/schema';
+import type { Card, ColumnType, ColumnWithCards, Member } from '../../api/schema';
 import { ConfirmButton } from '../../components/ConfirmButton';
 
 const COLUMN_TYPES: ColumnType[] = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'];
@@ -16,6 +16,7 @@ interface ColumnViewProps {
   draggingCardId: string | null;
   onDragStart: (cardId: string | null) => void;
   onDrop: (columnId: string, beforeCardId: string | null) => void;
+  members: Member[];
   onOpenCard: (card: Card) => void;
   onChanged: () => void;
 }
@@ -29,6 +30,7 @@ export function ColumnView({
   draggingCardId,
   onDragStart,
   onDrop,
+  members,
   onOpenCard,
   onChanged,
 }: ColumnViewProps) {
@@ -199,6 +201,11 @@ export function ColumnView({
               {card.deadline && (
                 <span className="block text-xs text-gray-500">
                   Due {new Date(card.deadline).toLocaleDateString()}
+                </span>
+              )}
+              {card.assigneeId && (
+                <span className="block text-xs text-gray-600">
+                  @{members.find((m) => m.userId === card.assigneeId)?.displayName ?? 'member'}
                 </span>
               )}
               {card.jiraIssueKey && (

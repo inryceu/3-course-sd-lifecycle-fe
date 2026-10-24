@@ -8,6 +8,8 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 import { CardDialog } from '../cards';
 import { BoardHeader } from './BoardHeader';
 import { ColumnView } from './ColumnView';
+import { MembersPanel } from './MembersPanel';
+import { useMembers } from './use-members';
 import { dropPosition, moveCardInBoard } from './move-card';
 
 interface MoveInput {
@@ -24,6 +26,8 @@ export function BoardPage() {
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [newColumn, setNewColumn] = useState('');
+  const [showMembers, setShowMembers] = useState(false);
+  const { data: members = [] } = useMembers(boardId);
 
   const {
     data: board,
@@ -102,6 +106,15 @@ export function BoardPage() {
   return (
     <div>
       <BoardHeader key={board.updatedAt} board={board} />
+      <button
+        type="button"
+        className="btn-secondary text-sm mb-3"
+        aria-expanded={showMembers}
+        onClick={() => setShowMembers((v) => !v)}
+      >
+        Members ({members.length})
+      </button>
+      {showMembers && <MembersPanel boardId={board.id} isAdmin={canEditStructure} />}
       <div className="flex gap-4 overflow-x-auto pb-4 items-start scrollbar-thin">
         {board.columns.map((column, index) => (
           <ColumnView
@@ -114,6 +127,7 @@ export function BoardPage() {
             draggingCardId={draggingCardId}
             onDragStart={setDraggingCardId}
             onDrop={onDrop}
+            members={members}
             onOpenCard={(card) => setOpenCardId(card.id)}
             onChanged={refresh}
           />
@@ -144,6 +158,7 @@ export function BoardPage() {
           key={openCard.id + openCard.updatedAt}
           card={openCard}
           columns={board.columns}
+          members={members}
           canEdit={canEditCards}
           onMove={(cardId, columnId) =>
             move.mutate({ cardId, columnId, position: dropPosition(board, cardId, columnId, null) })
