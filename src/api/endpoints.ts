@@ -8,7 +8,10 @@ import type {
   Card,
   Column,
   JiraConnectionStatus,
+  JiraImportResult,
   JiraMapping,
+  JiraStatusMapping,
+  Member,
   JiraOAuthCallbackResponse,
   JiraOAuthStartResponse,
   LoginRequest,
@@ -71,7 +74,23 @@ export const cardsApi = {
   move: (cardId: string, data: Schemas['MoveCardRequest']) =>
     api.patch<Card>(`/cards/${cardId}/move`, data),
 
+  assign: (cardId: string, assigneeId: string | null) =>
+    api.put<Card>(`/cards/${cardId}/assignee`, { assigneeId }),
+
   delete: (cardId: string) => api.delete<void>(`/cards/${cardId}`),
+};
+
+export const membersApi = {
+  list: (boardId: string) => api.get<Member[]>(`/boards/${boardId}/members`),
+
+  invite: (boardId: string, data: Schemas['InviteMemberRequest']) =>
+    api.post<Member>(`/boards/${boardId}/members`, data),
+
+  changeRole: (boardId: string, userId: string, role: Schemas['BoardRole']) =>
+    api.patch<Member>(`/boards/${boardId}/members/${userId}`, { role }),
+
+  remove: (boardId: string, userId: string) =>
+    api.delete<void>(`/boards/${boardId}/members/${userId}`),
 };
 
 export const jiraApi = {
@@ -97,4 +116,15 @@ export const jiraApi = {
 
   listMappings: (boardId: string) =>
     api.get<JiraMapping[]>(`/jira/mappings?boardId=${encodeURIComponent(boardId)}`),
+
+  importIssues: (boardId: string, projectKey?: string) =>
+    api.post<JiraImportResult>('/jira/import', { boardId, projectKey }),
+
+  statusMappings: (boardId: string) =>
+    api.get<JiraStatusMapping[]>(`/jira/status-mappings?boardId=${encodeURIComponent(boardId)}`, {
+      silent: true,
+    }),
+
+  saveStatusMappings: (boardId: string, mappings: { jiraStatusId: string; columnId: string }[]) =>
+    api.put<JiraStatusMapping[]>('/jira/status-mappings', { boardId, mappings }),
 };
