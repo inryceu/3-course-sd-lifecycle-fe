@@ -440,7 +440,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Import open Jira issues of the linked project as cards (Admin) */
+        /** Link the board to a Jira project and import its open issues as cards (Admin) */
         post: operations["importJiraIssues"];
         delete?: never;
         options?: never;
@@ -455,11 +455,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Card to issue mappings of a board */
+        /** Card to issue links of a board (any member) */
         get: operations["listJiraMappings"];
         put?: never;
         /** Link a card to an existing Jira issue (Member, Admin) */
         post: operations["createJiraMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/status-mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Jira status to column mapping of a board, with defaults for unmapped statuses (any member) */
+        get: operations["listJiraStatusMappings"];
+        /** Store which column each Jira status maps to (Admin) */
+        put: operations["putJiraStatusMappings"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -765,11 +783,35 @@ export interface components {
         JiraImportRequest: {
             /** Format: uuid */
             boardId: string;
+            /** @description Links the board to this project; defaults to the board's current jiraProjectKey */
             projectKey?: string;
         };
         JiraImportResult: {
+            /** @description Cards created or changed (created + updated) */
             imported: number;
+            created: number;
+            updated: number;
+            /** @description Issues whose card already matched */
             skipped: number;
+        };
+        JiraStatusMapping: {
+            jiraStatusId: string;
+            jiraStatusName: string;
+            /** @enum {string} */
+            statusCategory: "new" | "indeterminate" | "done" | "undefined";
+            /** Format: uuid */
+            columnId: string;
+            /** @description True when no mapping is stored and the column comes from the status category */
+            isDefault: boolean;
+        };
+        PutJiraStatusMappingsRequest: {
+            /** Format: uuid */
+            boardId: string;
+            mappings: {
+                jiraStatusId: string;
+                /** Format: uuid */
+                columnId: string;
+            }[];
         };
         JiraMapping: {
             /** Format: uuid */
@@ -1906,6 +1948,33 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description The board has no Jira connection, or it must be reconnected */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Jira rate-limited the import; retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Jira is unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listJiraMappings: {
@@ -1952,6 +2021,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JiraMapping"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listJiraStatusMappings: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per status of the linked Jira project */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraStatusMapping"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    putJiraStatusMappings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutJiraStatusMappingsRequest"];
+            };
+        };
+        responses: {
+            /** @description The full mapping after the change */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraStatusMapping"][];
                 };
             };
             400: components["responses"]["BadRequest"];

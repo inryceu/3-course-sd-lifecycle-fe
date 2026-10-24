@@ -2,12 +2,13 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { cardsApi } from '../../api/endpoints';
-import type { Card, ColumnWithCards } from '../../api/schema';
+import type { Card, ColumnWithCards, Member } from '../../api/schema';
 import { ConfirmButton } from '../../components/ConfirmButton';
 
 interface CardDialogProps {
   card: Card;
   columns: ColumnWithCards[];
+  members: Member[];
   canEdit: boolean;
   onMove: (cardId: string, columnId: string) => void;
   onClose: () => void;
@@ -22,6 +23,7 @@ function toDateInput(iso?: string | null): string {
 export function CardDialog({
   card,
   columns,
+  members,
   canEdit,
   onMove,
   onClose,
@@ -42,6 +44,10 @@ export function CardDialog({
       onChanged();
       onClose();
     },
+  });
+  const assign = useMutation({
+    mutationFn: (assigneeId: string | null) => cardsApi.assign(card.id, assigneeId),
+    onSuccess: onChanged,
   });
   const remove = useMutation({
     mutationFn: () => cardsApi.delete(card.id),
@@ -126,6 +132,25 @@ export function CardDialog({
               {columns.map((column) => (
                 <option key={column.id} value={column.id}>
                   {column.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="card-assignee">
+              Assignee
+            </label>
+            <select
+              id="card-assignee"
+              className="input"
+              disabled={!canEdit || assign.isPending}
+              value={card.assigneeId ?? ''}
+              onChange={(e) => assign.mutate(e.target.value || null)}
+            >
+              <option value="">Unassigned</option>
+              {members.map((member) => (
+                <option key={member.userId} value={member.userId}>
+                  {member.displayName}
                 </option>
               ))}
             </select>
