@@ -448,6 +448,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jira/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Jira projects visible to the board's connection, sorted by name (any member) */
+        get: operations["listJiraProjects"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/jira/mappings": {
         parameters: {
             query?: never;
@@ -793,6 +810,14 @@ export interface components {
             updated: number;
             /** @description Issues whose card already matched */
             skipped: number;
+        };
+        JiraProject: {
+            /** @example 10000 */
+            id: string;
+            /** @example KAN */
+            key: string;
+            /** @example Kanban */
+            name: string;
         };
         JiraStatusMapping: {
             jiraStatusId: string;
@@ -1958,6 +1983,66 @@ export interface operations {
                 };
             };
             /** @description Jira rate-limited the import; retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Jira is unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listJiraProjects: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Projects of the connected Jira site */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraProject"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description The Jira connection lacks the read:jira-work scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description The board has no Jira connection, or it must be reconnected */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Jira rate-limited the request; retry later */
             429: {
                 headers: {
                     [name: string]: unknown;
