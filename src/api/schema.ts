@@ -21,6 +21,7 @@ export type JiraOAuthStartResponse = Schemas['JiraOAuthStartResponse'];
 export type JiraOAuthCallbackResponse = Schemas['JiraOAuthCallbackResponse'];
 export type JiraMapping = Schemas['JiraMapping'];
 export type Notification = Schemas['Notification'];
+export type NotificationPage = Schemas['NotificationPage'];
 export type JiraImportResult = Schemas['JiraImportResult'];
 export type JiraStatusMapping = Schemas['JiraStatusMapping'];
 export type InviteMemberRequest = Schemas['InviteMemberRequest'];
