@@ -23,4 +23,5 @@ export type JiraMapping = Schemas['JiraMapping'];
 export type Notification = Schemas['Notification'];
 export type JiraImportResult = Schemas['JiraImportResult'];
 export type JiraStatusMapping = Schemas['JiraStatusMapping'];
+export type JiraProject = Schemas['JiraProject'];
 export type InviteMemberRequest = Schemas['InviteMemberRequest'];

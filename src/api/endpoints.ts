@@ -10,6 +10,7 @@ import type {
   JiraConnectionStatus,
   JiraImportResult,
   JiraMapping,
+  JiraProject,
   JiraStatusMapping,
   Member,
   JiraOAuthCallbackResponse,
@@ -116,6 +117,12 @@ export const jiraApi = {
 
   listMappings: (boardId: string) =>
     api.get<JiraMapping[]>(`/jira/mappings?boardId=${encodeURIComponent(boardId)}`),
+
+  /** Silent: the import panel falls back to typing the key when the list is unavailable. */
+  projects: (boardId: string) =>
+    api.get<JiraProject[]>(`/jira/projects?boardId=${encodeURIComponent(boardId)}`, {
+      silent: true,
+    }),
 
   importIssues: (boardId: string, projectKey?: string) =>
     api.post<JiraImportResult>('/jira/import', { boardId, projectKey }),
