@@ -1,0 +1,94 @@
+name: System tests (Playwright)
+
+# T-47: core user journeys in Chromium, Firefox and Edge against the full Compose stack
+# (backend repo's docker-compose.full.yml builds postgres + backend + this frontend).
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9.0.0'
+  FE_DIR: 3-course-sd-lifecycle-fe
+  BE_DIR: 3-course-sd-lifecycle-be
+
+jobs:
+  e2e:
+    name: Playwright (chromium, firefox, msedge)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout frontend
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.FE_DIR }}
+
+      # The compose file expects the frontend as a sibling checkout (../3-course-sd-lifecycle-fe).
+      # Backend branch = the PR's target branch (or the pushed branch): dev or main.
+      - name: Checkout backend
+        uses: actions/checkout@v4
+        with:
+          repository: inryceu/3-course-sd-lifecycle-be
+          ref: ${{ github.base_ref || github.ref_name }}
+          path: ${{ env.BE_DIR }}
+
+      - name: Start the full stack
+        working-directory: ${{ env.BE_DIR }}
+        # The example env file holds placeholders only; enough to start the stack (no Jira flows).
+        run: docker compose --env-file .env.full.example -f docker-compose.full.yml up -d --build --wait
+
+      - name: Wait for the web client and API
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8080/api/v1/health && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: ${{ env.FE_DIR }}/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: ${{ env.FE_DIR }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Install browsers (Chromium, Firefox, Microsoft Edge)
+        working-directory: ${{ env.FE_DIR }}
+        run: pnpm exec playwright install --with-deps chromium firefox msedge
+
+      - name: Run system tests
+        working-directory: ${{ env.FE_DIR }}
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:8080
+        run: pnpm e2e
+
+      - name: Upload report, traces and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            ${{ env.FE_DIR }}/playwright-report/
+            ${{ env.FE_DIR }}/test-results/
+          retention-days: 14
+
+      - name: Compose logs
+        if: failure()
+        working-directory: ${{ env.BE_DIR }}
+        run: docker compose --env-file .env.full.example -f docker-compose.full.yml logs --no-color --tail=200
