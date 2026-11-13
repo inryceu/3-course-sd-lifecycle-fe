@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { boardsApi, jiraApi } from '../../api/endpoints';
-import type { Board, JiraImportResult } from '../../api/schema';
+import type { Board, JiraImportResult, JiraProject } from '../../api/schema';
 
 const PROJECT_KEY = /^[A-Z][A-Z0-9_]{1,9}$/;
 
@@ -22,6 +22,18 @@ export function JiraImportPanel({ board }: { board: Board }) {
     queryKey: ['board', board.id],
     queryFn: () => boardsApi.get(board.id),
   });
+  // Only the Admin sees the import form, so only the Admin needs the project list.
+  const projects = useQuery({
+    queryKey: ['jira-projects', board.id],
+    queryFn: () => jiraApi.projects(board.id),
+    enabled: isAdmin,
+    retry: false,
+  });
+  const projectOptions: JiraProject[] = [...(projects.data ?? [])];
+  // Keep the current link visible even if the connection can no longer see that project.
+  if (projects.data && linkedKey && !projects.data.some((p) => p.key === linkedKey)) {
+    projectOptions.push({ id: linkedKey, key: linkedKey, name: 'Linked project' });
+  }
   const mappings = useQuery({
     queryKey: ['jira-status-mappings', board.id],
     queryFn: () => jiraApi.statusMappings(board.id),
@@ -64,18 +76,45 @@ export function JiraImportPanel({ board }: { board: Board }) {
           className="flex flex-wrap items-end gap-2"
           aria-label="Import issues"
         >
-          <div>
-            <label className="label" htmlFor={`project-${board.id}`}>
-              Jira project key
-            </label>
-            <input
-              id={`project-${board.id}`}
-              className="input w-36 uppercase"
-              placeholder="KAN"
-              value={projectKey}
-              onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
-            />
-          </div>
+          {projects.isError ? (
+            <div>
+              <label className="label" htmlFor={`project-${board.id}`}>
+                Jira project key
+              </label>
+              <input
+                id={`project-${board.id}`}
+                className="input w-36 uppercase"
+                placeholder="KAN"
+                value={projectKey}
+                onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Could not list the Jira projects; type the key instead.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="label" htmlFor={`project-${board.id}`}>
+                Jira project
+              </label>
+              <select
+                id={`project-${board.id}`}
+                className="input w-64"
+                value={projectKey}
+                disabled={projects.isLoading}
+                onChange={(e) => setProjectKey(e.target.value)}
+              >
+                <option value="">
+                  {projects.isLoading ? 'Loading projects...' : 'Choose a project'}
+                </option>
+                {projectOptions.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.name} ({p.key})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <button
             type="submit"
             className="btn-primary text-sm"
