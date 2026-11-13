@@ -500,7 +500,6 @@ paths:
       tags: [labels]
       operationId: listLabels
       summary: Labels of a board
-      x-implemented-in: T-30
       responses:
         '200':
           description: Labels
@@ -518,7 +517,6 @@ paths:
       tags: [labels]
       operationId: createLabel
       summary: Create a label (Member, Admin)
-      x-implemented-in: T-30
       requestBody:
         required: true
         content:
@@ -553,7 +551,6 @@ paths:
       tags: [labels]
       operationId: updateLabel
       summary: Rename or recolour a label (Member, Admin)
-      x-implemented-in: T-30
       requestBody:
         required: true
         content:
@@ -579,7 +576,6 @@ paths:
       tags: [labels]
       operationId: deleteLabel
       summary: Delete a label (Member, Admin)
-      x-implemented-in: T-30
       responses:
         '204':
           description: Deleted
@@ -603,7 +599,6 @@ paths:
       tags: [labels]
       operationId: attachLabel
       summary: Attach a label to a card (Member, Admin)
-      x-implemented-in: T-30
       responses:
         '200':
           description: Updated card
@@ -621,7 +616,6 @@ paths:
       tags: [labels]
       operationId: detachLabel
       summary: Detach a label from a card (Member, Admin)
-      x-implemented-in: T-30
       responses:
         '200':
           description: Updated card
@@ -643,7 +637,6 @@ paths:
       tags: [comments]
       operationId: listComments
       summary: Comments of a card, oldest first
-      x-implemented-in: T-30
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
@@ -654,6 +647,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommentPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -662,7 +657,6 @@ paths:
       tags: [comments]
       operationId: createComment
       summary: Comment on a card; mirrored to Jira when the card is linked (Member, Admin)
-      x-implemented-in: T-30
       requestBody:
         required: true
         content:
@@ -678,6 +672,28 @@ paths:
                 $ref: '#/components/schemas/Comment'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /cards/{cardId}/comments/{commentId}:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+      - name: commentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [comments]
+      operationId: deleteComment
+      summary: Delete a comment (Author or Admin)
+      responses:
+        '204':
+          description: Deleted
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1083,9 +1099,32 @@ paths:
     post:
       tags: [jira]
       operationId: receiveJiraWebhook
-      summary: Receive Jira issue events (verified with the webhook secret)
-      x-implemented-in: T-26
+      summary: Receive a signed Jira issue event (public)
+      description: |
+        Public endpoint for Atlassian dynamic webhooks. Authenticate every delivery with either
+        `X-Hub-Signature` (HMAC-SHA256 over the exact raw body, using `WEBHOOK_SECRET`) or a
+        bearer JWT signed with `JIRA_CLIENT_SECRET`. When present, `X-Hub-Signature` takes
+        precedence and an invalid signature is never retried as a JWT.
       security: []
+      parameters:
+        - name: X-Hub-Signature
+          in: header
+          required: false
+          description: HMAC-SHA256 of the raw body in the form `sha256=<hex>`.
+          schema:
+            type: string
+        - name: X-Atlassian-Webhook-Identifier
+          in: header
+          required: false
+          description: Sent by Atlassian but not used for deduplication (it is not signed); the key is a hash of event, issue id and changelog id, or of the raw body.
+          schema:
+            type: string
+        - name: X-Atlassian-Webhook-Retry
+          in: header
+          required: false
+          description: Atlassian retry counter, for diagnostics only.
+          schema:
+            type: integer
       requestBody:
         required: true
         content:
@@ -1094,8 +1133,10 @@ paths:
               type: object
               additionalProperties: true
       responses:
-        '202':
-          description: Accepted for processing
+        '200':
+          description: Delivery processed or intentionally ignored
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
 

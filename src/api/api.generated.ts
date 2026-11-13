@@ -330,6 +330,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cards/{cardId}/comments/{commentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a comment (Author or Admin) */
+        delete: operations["deleteComment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/boards/{boardId}/members": {
         parameters: {
             query?: never;
@@ -510,7 +530,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Receive Jira issue events (verified with the webhook secret) */
+        /**
+         * Receive a signed Jira issue event (public)
+         * @description Public endpoint for Atlassian dynamic webhooks. Authenticate every delivery with either
+         *     `X-Hub-Signature` (HMAC-SHA256 over the exact raw body, using `WEBHOOK_SECRET`) or a
+         *     bearer JWT signed with `JIRA_CLIENT_SECRET`. When present, `X-Hub-Signature` takes
+         *     precedence and an invalid signature is never retried as a JWT.
+         */
         post: operations["receiveJiraWebhook"];
         delete?: never;
         options?: never;
@@ -1695,6 +1721,7 @@ export interface operations {
                     "application/json": components["schemas"]["CommentPage"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
@@ -1724,6 +1751,30 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cardId: components["parameters"]["CardId"];
+                commentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
@@ -2176,7 +2227,14 @@ export interface operations {
     receiveJiraWebhook: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description HMAC-SHA256 of the raw body in the form `sha256=<hex>`. */
+                "X-Hub-Signature"?: string;
+                /** @description Sent by Atlassian but not used for deduplication (it is not signed); the key is a hash of event, issue id and changelog id, or of the raw body. */
+                "X-Atlassian-Webhook-Identifier"?: string;
+                /** @description Atlassian retry counter, for diagnostics only. */
+                "X-Atlassian-Webhook-Retry"?: number;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2188,13 +2246,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Accepted for processing */
-            202: {
+            /** @description Delivery processed or intentionally ignored */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
         };
     };
