@@ -1,5 +1,8 @@
 # BoardSync — Frontend
 
+[![CI (dev)](https://github.com/inryceu/3-course-sd-lifecycle-fe/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/inryceu/3-course-sd-lifecycle-fe/actions/workflows/ci.yml?query=branch%3Adev)
+[![CI (main)](https://github.com/inryceu/3-course-sd-lifecycle-fe/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/inryceu/3-course-sd-lifecycle-fe/actions/workflows/ci.yml?query=branch%3Amain)
+
 > Kanban board UI with two-way Jira synchronization. Frontend repository (React + TypeScript).
 
 ## Concept
@@ -144,7 +147,7 @@ Short summary; [`CONTRIBUTING.md`](CONTRIBUTING.md) is the authority and wins if
 - **Conflict resolution**: create `KAN-<n>-dev` branch from `dev`, resolve conflicts, open PR `KAN-<n>-dev` → `dev`
 - **Merge flow**: PR into `dev` → squash merge → `dev` → `main` at sprint end
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`)
-- **PR requirements** (per `CONTRIBUTING.md`): CI green (lint, typecheck, test, build), 1 approval, conversations resolved
+- **PR requirements** (per `CONTRIBUTING.md`): CI green (Lint, TypeCheck, Tests, Build, Docker Build), 1 approval, conversations resolved
 - **AI agents**: may open/comment/edit PRs, **never merge**
 - **Details**: `CONTRIBUTING.md`, `AGENTS.md#git-workflow-rules`
 

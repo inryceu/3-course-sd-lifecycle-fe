@@ -11,8 +11,10 @@ export default defineConfig({
     globals: true,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text-summary', 'lcov', 'json-summary', 'html'],
       exclude: ['node_modules/', 'test/', '*.config.*', 'dist/'],
+      // Agreed in the backlog index (T-40 / KAN-51): >= 70 % lines for the whole repository.
+      thresholds: { lines: 70 },
     },
   },
   resolve: {
