@@ -10,8 +10,11 @@ import type {
   JiraConnectionStatus,
   JiraImportResult,
   JiraMapping,
+  JiraProject,
   JiraStatusMapping,
   Member,
+  Notification,
+  NotificationPage,
   JiraOAuthCallbackResponse,
   JiraOAuthStartResponse,
   LoginRequest,
@@ -93,6 +96,14 @@ export const membersApi = {
     api.delete<void>(`/boards/${boardId}/members/${userId}`),
 };
 
+export const notificationsApi = {
+  /** Newest first; the first page (default 50) is enough for the header bell. */
+  list: () => api.get<NotificationPage>('/notifications'),
+
+  markRead: (notificationId: string) =>
+    api.post<Notification>(`/notifications/${notificationId}/read`),
+};
+
 export const jiraApi = {
   startOAuth: (boardId: string) =>
     api.get<JiraOAuthStartResponse>(`/jira/oauth/start?boardId=${encodeURIComponent(boardId)}`),
@@ -116,6 +127,12 @@ export const jiraApi = {
 
   listMappings: (boardId: string) =>
     api.get<JiraMapping[]>(`/jira/mappings?boardId=${encodeURIComponent(boardId)}`),
+
+  /** Silent: the import panel falls back to typing the key when the list is unavailable. */
+  projects: (boardId: string) =>
+    api.get<JiraProject[]>(`/jira/projects?boardId=${encodeURIComponent(boardId)}`, {
+      silent: true,
+    }),
 
   importIssues: (boardId: string, projectKey?: string) =>
     api.post<JiraImportResult>('/jira/import', { boardId, projectKey }),
