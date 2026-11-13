@@ -24,3 +24,7 @@ docker-compose*
 .github
 coverage
 .nyc_output
+e2e
+playwright-report
+test-results
+blob-report
