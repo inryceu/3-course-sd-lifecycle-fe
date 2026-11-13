@@ -561,7 +561,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Mark a notification as read */
+        /**
+         * Mark a notification as read
+         * @description Idempotent; the first `readAt` is kept. Another user's notification answers 404.
+         */
         post: operations["markNotificationRead"];
         delete?: never;
         options?: never;
@@ -2247,6 +2250,7 @@ export interface operations {
                     "application/json": components["schemas"]["NotificationPage"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
         };
     };

@@ -13,6 +13,8 @@ import type {
   JiraProject,
   JiraStatusMapping,
   Member,
+  Notification,
+  NotificationPage,
   JiraOAuthCallbackResponse,
   JiraOAuthStartResponse,
   LoginRequest,
@@ -92,6 +94,14 @@ export const membersApi = {
 
   remove: (boardId: string, userId: string) =>
     api.delete<void>(`/boards/${boardId}/members/${userId}`),
+};
+
+export const notificationsApi = {
+  /** Newest first; the first page (default 50) is enough for the header bell. */
+  list: () => api.get<NotificationPage>('/notifications'),
+
+  markRead: (notificationId: string) =>
+    api.post<Notification>(`/notifications/${notificationId}/read`),
 };
 
 export const jiraApi = {
