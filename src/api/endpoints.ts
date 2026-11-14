@@ -20,6 +20,7 @@ import type {
   LoginRequest,
   RegisterRequest,
   User,
+  Label,
 } from './schema';
 
 type Schemas = components['schemas'];
@@ -144,4 +145,35 @@ export const jiraApi = {
 
   saveStatusMappings: (boardId: string, mappings: { jiraStatusId: string; columnId: string }[]) =>
     api.put<JiraStatusMapping[]>('/jira/status-mappings', { boardId, mappings }),
+};
+
+export const labelsApi = {
+  list: (boardId: string) => api.get<Label[]>(`/boards/${boardId}/labels`),
+
+  create: (boardId: string, data: Schemas['CreateLabelRequest']) =>
+    api.post<Label>(`/boards/${boardId}/labels`, data),
+
+  update: (labelId: string, data: Schemas['UpdateLabelRequest']) =>
+    api.patch<Label>(`/labels/${labelId}`, data),
+
+  delete: (labelId: string) => api.delete<void>(`/labels/${labelId}`),
+
+  attach: (cardId: string, labelId: string) =>
+    api.put<Card>(`/cards/${cardId}/labels/${labelId}`, {}),
+
+  detach: (cardId: string, labelId: string) =>
+    api.delete<Card>(`/cards/${cardId}/labels/${labelId}`),
+};
+
+export const commentsApi = {
+  list: (cardId: string, cursor?: string) =>
+    api.get<Schemas['CommentPage']>(
+      `/cards/${cardId}/comments?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
+    ),
+
+  create: (cardId: string, text: string) =>
+    api.post<Schemas['Comment']>(`/cards/${cardId}/comments`, { text }),
+
+  delete: (cardId: string, commentId: string) =>
+    api.delete<void>(`/cards/${cardId}/comments/${commentId}`),
 };
