@@ -19,7 +19,13 @@ vi.mock('../../api/endpoints', () => ({
   membersApi: api.members,
 }));
 vi.mock('../../hooks/useWebSocket', () => ({
-  useWebSocket: () => ({ joinBoard: vi.fn(), leaveBoard: vi.fn(), on: () => () => undefined }),
+  useWebSocket: () => ({
+    joinBoard: vi.fn(),
+    leaveBoard: vi.fn(),
+    on: vi.fn(() => vi.fn()),
+    onConnect: vi.fn(() => vi.fn()),
+    isConnected: true,
+  }),
 }));
 vi.mock('../auth', () => ({ useAuth: () => ({ user: { id: 'u-admin' } }) }));
 

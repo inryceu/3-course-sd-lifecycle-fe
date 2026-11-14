@@ -20,7 +20,13 @@ vi.mock('../../api/endpoints', () => ({
   cardsApi: api.cards,
 }));
 vi.mock('../../hooks/useWebSocket', () => ({
-  useWebSocket: () => ({ joinBoard: vi.fn(), leaveBoard: vi.fn(), on: () => () => undefined }),
+  useWebSocket: () => ({
+    joinBoard: vi.fn(),
+    leaveBoard: vi.fn(),
+    on: vi.fn(() => vi.fn()),
+    onConnect: vi.fn(() => vi.fn()),
+    isConnected: true,
+  }),
 }));
 
 function boardAs(myRole: BoardRole): BoardDetail {
