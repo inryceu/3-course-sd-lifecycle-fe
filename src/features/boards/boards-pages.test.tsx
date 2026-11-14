@@ -22,6 +22,12 @@ vi.mock('../../api/endpoints', () => ({
 vi.mock('../../hooks/useWebSocket', () => ({
   useWebSocket: () => ({ joinBoard: vi.fn(), leaveBoard: vi.fn(), on: () => () => undefined }),
 }));
+vi.mock('../auth', () => ({
+  useAuth: vi.fn(() => ({
+    user: { id: 'u1' },
+    isAuthenticated: true,
+  })),
+}));
 
 function boardAs(myRole: BoardRole): BoardDetail {
   const base = { boardId: 'b1', labelIds: [], createdAt: '', updatedAt: '' };
