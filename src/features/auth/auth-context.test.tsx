@@ -2,21 +2,26 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthProvider, useAuth } from './AuthContext';
-import { api } from '../../api/client';
-import { authApi } from '../../api/endpoints';
+
+const mockGetToken = vi.fn();
+const mockSetToken = vi.fn();
+const mockMe = vi.fn();
+const mockLogin = vi.fn();
 
 vi.mock('../../api/client', () => ({
   api: {
-    getToken: vi.fn(),
-    setToken: vi.fn(),
+    getToken: () => mockGetToken(),
+    setToken: (token: string | null) => {
+      mockSetToken(token);
+    },
   },
 }));
 
 vi.mock('../../api/endpoints', () => ({
   authApi: {
-    me: vi.fn(),
-    login: vi.fn(),
-    register: vi.fn(),
+    me: () => mockMe(),
+    login: (req: unknown) => mockLogin(req),
+    register: () => {},
   },
 }));
 
@@ -29,7 +34,7 @@ function TestComponent() {
     <div>
       <div data-testid="auth-status">{isAuthenticated ? 'Logged In' : 'Logged Out'}</div>
       <div data-testid="user-name">{user?.displayName}</div>
-      <button onClick={() => login('test@example.com', 'pass')}>Login</button>
+      <button onClick={() => void login('test@example.com', 'pass')}>Login</button>
       <button onClick={logout}>Logout</button>
     </div>
   );
@@ -37,11 +42,14 @@ function TestComponent() {
 
 describe('AuthContext', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockGetToken.mockReset();
+    mockSetToken.mockReset();
+    mockMe.mockReset();
+    mockLogin.mockReset();
   });
 
-  it('initializes as logged out if no token exists', async () => {
-    (api.getToken as any).mockReturnValue(null);
+  it('initializes as logged out if no token exists', () => {
+    mockGetToken.mockReturnValue(null);
     render(
       <AuthProvider>
         <TestComponent />
@@ -51,8 +59,8 @@ describe('AuthContext', () => {
   });
 
   it('fetches profile and logs in if valid token exists', async () => {
-    (api.getToken as any).mockReturnValue('valid-token');
-    (authApi.me as any).mockResolvedValue({ id: 'u1', displayName: 'Test User' });
+    mockGetToken.mockReturnValue('valid-token');
+    mockMe.mockResolvedValue({ id: 'u1', displayName: 'Test User' });
 
     render(
       <AuthProvider>
@@ -69,8 +77,8 @@ describe('AuthContext', () => {
   });
 
   it('clears token if fetching profile fails (edge case: expired/tampered token)', async () => {
-    (api.getToken as any).mockReturnValue('tampered-token');
-    (authApi.me as any).mockRejectedValue(new Error('Unauthorized'));
+    mockGetToken.mockReturnValue('tampered-token');
+    mockMe.mockRejectedValue(new Error('Unauthorized'));
 
     render(
       <AuthProvider>
@@ -81,14 +89,15 @@ describe('AuthContext', () => {
     await waitFor(() => {
       expect(screen.getByTestId('auth-status')).toHaveTextContent('Logged Out');
     });
-    expect(api.setToken).toHaveBeenCalledWith(null);
+    expect(mockSetToken).toHaveBeenCalledWith(null);
   });
 
   it('allows user to login', async () => {
-    (api.getToken as any).mockReturnValue(null);
-    (authApi.login as any).mockResolvedValue({
+    mockGetToken.mockReturnValue(null);
+    mockLogin.mockResolvedValue({
       accessToken: 'new-token',
-      user: { id: 'u2', displayName: 'New User' },
+      expiresIn: 3600,
+      user: { id: 'u2', displayName: 'New User', email: 'test@example.com' },
     });
 
     render(
@@ -105,12 +114,12 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('auth-status')).toHaveTextContent('Logged In');
       expect(screen.getByTestId('user-name')).toHaveTextContent('New User');
     });
-    expect(api.setToken).toHaveBeenCalledWith('new-token');
+    expect(mockSetToken).toHaveBeenCalledWith('new-token');
   });
 
   it('allows user to logout', async () => {
-    (api.getToken as any).mockReturnValue('valid-token');
-    (authApi.me as any).mockResolvedValue({ id: 'u1', displayName: 'Test User' });
+    mockGetToken.mockReturnValue('valid-token');
+    mockMe.mockResolvedValue({ id: 'u1', displayName: 'Test User' });
 
     render(
       <AuthProvider>
@@ -125,6 +134,6 @@ describe('AuthContext', () => {
     await waitFor(() => {
       expect(screen.getByTestId('auth-status')).toHaveTextContent('Logged Out');
     });
-    expect(api.setToken).toHaveBeenCalledWith(null);
+    expect(mockSetToken).toHaveBeenCalledWith(null);
   });
 });
