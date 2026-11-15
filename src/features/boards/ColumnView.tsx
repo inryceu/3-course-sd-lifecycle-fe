@@ -84,6 +84,30 @@ export function ColumnView({
     if (newCard.trim()) addCard.mutate(newCard.trim());
   };
 
+  const getDeadlineBadge = (deadline: string | null | undefined) => {
+    if (!deadline) return null;
+
+    const due = new Date(deadline).getTime();
+    const now = new Date().getTime();
+    const hoursRemaining = (due - now) / (1000 * 60 * 60);
+
+    if (hoursRemaining < 0) {
+      return (
+        <span className="inline-block mt-1 bg-red-100 text-red-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
+          Overdue
+        </span>
+      );
+    }
+    if (hoursRemaining <= 24) {
+      return (
+        <span className="inline-block mt-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
+          Due soon
+        </span>
+      );
+    }
+    return null;
+  };
+
   return (
     <section
       aria-label={`Column ${column.title}`}
@@ -199,17 +223,20 @@ export function ColumnView({
             <button type="button" className="text-left w-full" onClick={() => onOpenCard(card)}>
               <span className="block font-medium">{card.title}</span>
               {card.deadline && (
-                <span className="block text-xs text-gray-500">
-                  Due {new Date(card.deadline).toLocaleDateString()}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="block text-xs text-gray-500">
+                    Due {new Date(card.deadline).toLocaleDateString()}
+                  </span>
+                  {getDeadlineBadge(card.deadline)}
+                </div>
               )}
               {card.assigneeId && (
-                <span className="block text-xs text-gray-600">
+                <span className="block text-xs text-gray-600 mt-1">
                   @{members.find((m) => m.userId === card.assigneeId)?.displayName ?? 'member'}
                 </span>
               )}
               {card.jiraIssueKey && (
-                <span className="block text-xs text-primary-600">{card.jiraIssueKey}</span>
+                <span className="block text-xs text-primary-600 mt-1">{card.jiraIssueKey}</span>
               )}
             </button>
           </li>
