@@ -144,4 +144,10 @@ export const jiraApi = {
 
   saveStatusMappings: (boardId: string, mappings: { jiraStatusId: string; columnId: string }[]) =>
     api.put<JiraStatusMapping[]>('/jira/status-mappings', { boardId, mappings }),
+
+  conflicts: (boardId: string) =>
+    api.get<Schemas['JiraConflictPage']>(`/jira/conflicts?boardId=${encodeURIComponent(boardId)}`),
+
+  resolveConflict: (conflictId: string, resolution: 'JIRA' | 'BOARD') =>
+    api.post<void>(`/jira/conflicts/${conflictId}/resolve`, { resolution }),
 };

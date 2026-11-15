@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { useAuth } from '../features/auth';
@@ -32,8 +32,11 @@ export function useWebSocket() {
   const socketRef = useRef<Socket | null>(null);
   const { isAuthenticated, accessToken, user } = useAuth();
   const handlersRef = useRef<Map<BoardEventType, Set<EventHandler>>>(new Map());
+  const connectHandlersRef = useRef<Set<() => void>>(new Set());
   const userIdRef = useRef<string | undefined>(user?.id);
   userIdRef.current = user?.id;
+
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated || !accessToken) {
@@ -44,14 +47,23 @@ export function useWebSocket() {
       auth: { token: accessToken },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
     socketRef.current = socket;
 
+    socket.on('connect', () => {
+      setIsConnected(true);
+      connectHandlersRef.current.forEach((handler) => handler());
+    });
+
+    socket.on('disconnect', () => {
+      setIsConnected(false);
+    });
+
     BOARD_EVENT_TYPES.forEach((type) => {
       socket.on(type, (event: RealtimeEvent) => {
-        // The author already applied the change optimistically.
         if (event.actorId && event.actorId === userIdRef.current) return;
         handlersRef.current.get(type)?.forEach((handler) => handler(event));
       });
@@ -81,5 +93,12 @@ export function useWebSocket() {
     };
   }, []);
 
-  return { joinBoard, leaveBoard, on };
+  const onConnect = useCallback((handler: () => void) => {
+    connectHandlersRef.current.add(handler);
+    return () => {
+      connectHandlersRef.current.delete(handler);
+    };
+  }, []);
+
+  return { joinBoard, leaveBoard, on, onConnect, isConnected };
 }

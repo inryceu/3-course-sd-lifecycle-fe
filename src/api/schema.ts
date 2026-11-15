@@ -26,3 +26,5 @@ export type JiraImportResult = Schemas['JiraImportResult'];
 export type JiraStatusMapping = Schemas['JiraStatusMapping'];
 export type JiraProject = Schemas['JiraProject'];
 export type InviteMemberRequest = Schemas['InviteMemberRequest'];
+export type JiraConflict = Schemas['JiraConflict'];
+export type JiraConflictPage = Schemas['JiraConflictPage'];

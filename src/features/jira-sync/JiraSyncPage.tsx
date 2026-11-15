@@ -4,8 +4,8 @@ import { boardsApi, jiraApi } from '../../api/endpoints';
 import type { Board } from '../../api/schema';
 import { ConfirmButton } from '../../components/ConfirmButton';
 import { JiraImportPanel } from './JiraImportPanel';
+import { JiraConflictsPanel } from './JiraConflictsPanel';
 
-/** Remembers which board started the flow, so the callback page can link back to it. */
 export const JIRA_BOARD_KEY = 'jiraConnectBoardId';
 
 function JiraBoardRow({ board }: { board: Board }) {
@@ -78,7 +78,12 @@ function JiraBoardRow({ board }: { board: Board }) {
           </span>
         )}
       </div>
-      {status?.connected && <JiraImportPanel board={board} />}
+      {status?.connected && (
+        <>
+          <JiraImportPanel board={board} />
+          {isAdmin && <JiraConflictsPanel board={board} />}
+        </>
+      )}
     </li>
   );
 }

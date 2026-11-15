@@ -5,8 +5,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { boardsApi } from '../../api/endpoints';
 import type { BoardDetail } from '../../api/schema';
 import { ConfirmButton } from '../../components/ConfirmButton';
+import { clsx } from 'clsx';
 
-export function BoardHeader({ board }: { board: BoardDetail }) {
+export function BoardHeader({
+  board,
+  isConnected = false,
+}: {
+  board: BoardDetail;
+  isConnected?: boolean;
+}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = board.myRole === 'ADMIN';
@@ -83,8 +90,18 @@ export function BoardHeader({ board }: { board: BoardDetail }) {
   return (
     <div className="flex items-start justify-between gap-4 mb-4">
       <div>
-        <h1 className="text-2xl font-bold">{board.title}</h1>
-        {board.description && <p className="text-gray-600">{board.description}</p>}
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">{board.title}</h1>
+          <div
+            title={isConnected ? 'Connected to live updates' : 'Disconnected, reconnecting...'}
+            className={clsx(
+              'h-2.5 w-2.5 rounded-full mt-1.5',
+              isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
+            )}
+            aria-label="Connection status"
+          />
+        </div>
+        {board.description && <p className="text-gray-600 mt-1">{board.description}</p>}
         <p className="text-xs text-gray-500 mt-1">Your role: {board.myRole}</p>
       </div>
       {isAdmin && (

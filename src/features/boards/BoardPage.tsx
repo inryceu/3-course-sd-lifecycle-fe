@@ -22,7 +22,7 @@ export function BoardPage() {
   const { boardId = '' } = useParams<{ boardId: string }>();
   const queryKey = ['board', boardId];
   const queryClient = useQueryClient();
-  const { joinBoard, leaveBoard, on } = useWebSocket();
+  const { joinBoard, leaveBoard, on, onConnect, isConnected } = useWebSocket();
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [newColumn, setNewColumn] = useState('');
@@ -47,14 +47,22 @@ export function BoardPage() {
   useEffect(() => {
     if (!boardId) return;
     joinBoard(boardId);
+
+    const offConnect = onConnect(() => {
+      joinBoard(boardId);
+      refresh();
+    });
+
     const offs = (['card.created', 'card.updated', 'card.moved', 'board.updated'] as const).map(
       (type) => on(type, refresh)
     );
+
     return () => {
       leaveBoard(boardId);
+      offConnect();
       offs.forEach((off) => off());
     };
-  }, [boardId, joinBoard, leaveBoard, on, refresh]);
+  }, [boardId, joinBoard, leaveBoard, on, onConnect, refresh]);
 
   const move = useMutation({
     mutationFn: ({ cardId, columnId, position }: MoveInput) =>
@@ -105,7 +113,7 @@ export function BoardPage() {
 
   return (
     <div>
-      <BoardHeader key={board.updatedAt} board={board} />
+      <BoardHeader key={board.updatedAt} board={board} isConnected={isConnected} />
       <button
         type="button"
         className="btn-secondary text-sm mb-3"
