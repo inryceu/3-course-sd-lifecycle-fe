@@ -100,6 +100,31 @@ namespace `/realtime`) to the backend, so the SPA uses same-origin URLs.
 If port 8080 or 3000 is already used on your machine, set `WEB_PORT` / `BACKEND_PORT` in `.env.full`
 (the web UI then is on `http://localhost:<WEB_PORT>`).
 
+### System tests (Playwright)
+
+`e2e/` holds browser tests of the core journeys: register → log in, create a board → add cards →
+drag a card, and a board Viewer's restrictions. They run against a running full stack (above) and
+seed their own users and boards through the API (`pw-<unique>@example.com`), so any stack works.
+Vitest never picks them up (it only collects `src/`).
+
+```bash
+pnpm exec playwright install chromium firefox msedge   # once
+PLAYWRIGHT_BASE_URL=http://localhost:8080 pnpm e2e                     # all browsers
+PLAYWRIGHT_BASE_URL=http://localhost:8080 pnpm e2e --project=chromium  # one browser
+```
+
+A failed test leaves its trace and screenshot in `test-results/`
+(`pnpm exec playwright show-trace test-results/<test>/trace.zip`).
+
+Projects: `setup` (registers a user and stores its session in `e2e/.auth/`), then `chromium`,
+`firefox` and `msedge` (Edge channel). Fixtures live in `e2e/fixtures.ts`: `seed` (API seeding),
+`signIn(page, token)` and `signedInTest` (starts with the stored session).
+
+CI: `.github/workflows/e2e.yml` checks out the backend next to this repository (the PR's target
+branch), starts `docker-compose.full.yml` with the placeholder `.env.full.example`, runs the suite in
+all three browsers and, when a test fails, uploads `playwright-report/` and `test-results/` (traces,
+screenshots) as the `playwright-report` artifact.
+
 ## Environment variables
 
 | Variable | Default | Meaning |
