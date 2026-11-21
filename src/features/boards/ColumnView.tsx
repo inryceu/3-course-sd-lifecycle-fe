@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DragEvent, FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { cardsApi, columnsApi } from '../../api/endpoints';
@@ -82,6 +82,37 @@ export function ColumnView({
   const onAddCard = (event: FormEvent) => {
     event.preventDefault();
     if (newCard.trim()) addCard.mutate(newCard.trim());
+  };
+
+  // Re-render every minute so "Due soon" turns into "Overdue" without another update.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // A card in a DONE column is finished: no deadline warning, whatever the date.
+  const isDone = column.type === 'DONE';
+  const getDeadlineBadge = (deadline: string | null | undefined) => {
+    if (!deadline || isDone) return null;
+
+    const hoursRemaining = (new Date(deadline).getTime() - now) / (1000 * 60 * 60);
+
+    if (hoursRemaining < 0) {
+      return (
+        <span className="inline-block mt-1 bg-red-100 text-red-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
+          Overdue
+        </span>
+      );
+    }
+    if (hoursRemaining <= 24) {
+      return (
+        <span className="inline-block mt-1 bg-yellow-100 text-yellow-800 text-[10px] font-bold px-1.5 py-0.5 rounded">
+          Due soon
+        </span>
+      );
+    }
+    return null;
   };
 
   return (
@@ -199,17 +230,20 @@ export function ColumnView({
             <button type="button" className="text-left w-full" onClick={() => onOpenCard(card)}>
               <span className="block font-medium">{card.title}</span>
               {card.deadline && (
-                <span className="block text-xs text-gray-500">
-                  Due {new Date(card.deadline).toLocaleDateString()}
-                </span>
+                <div className="flex flex-wrap items-center gap-x-2">
+                  <span className="block text-xs text-gray-500">
+                    Due {new Date(card.deadline).toLocaleDateString()}
+                  </span>
+                  {getDeadlineBadge(card.deadline)}
+                </div>
               )}
               {card.assigneeId && (
-                <span className="block text-xs text-gray-600">
+                <span className="block text-xs text-gray-600 mt-1">
                   @{members.find((m) => m.userId === card.assigneeId)?.displayName ?? 'member'}
                 </span>
               )}
               {card.jiraIssueKey && (
-                <span className="block text-xs text-primary-600">{card.jiraIssueKey}</span>
+                <span className="block text-xs text-primary-600 mt-1">{card.jiraIssueKey}</span>
               )}
             </button>
           </li>

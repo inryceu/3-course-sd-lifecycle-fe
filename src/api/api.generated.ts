@@ -322,7 +322,10 @@ export interface paths {
         /** Comments of a card, oldest first */
         get: operations["listComments"];
         put?: never;
-        /** Comment on a card; mirrored to Jira when the card is linked (Member, Admin) */
+        /**
+         * Comment on a card; mirrored asynchronously to Jira when the card is linked (Member, Admin)
+         * @description Creates the comment and returns 201 without waiting for Jira. Inspect `syncedToJira` or the sync log for the mirror outcome.
+         */
         post: operations["createComment"];
         delete?: never;
         options?: never;
@@ -551,10 +554,39 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Logged synchronisation conflicts of a board (Admin) */
+        /**
+         * Logged synchronisation conflicts of a board, newest first (Admin)
+         * @description A conflict is a BoardSync user move of a linked card and a Jira status change of the same
+         *     issue at most 5 seconds apart (either order) that put the card in different columns.
+         *     Jira wins by default (`resolution: jira`, `resolvedAt: null`) until an admin resolves it.
+         */
         get: operations["listJiraConflicts"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/conflicts/{conflictId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Keep the Jira version or push the BoardSync version of a conflict (Admin)
+         * @description `jira` reads the issue's current Jira status and moves the card to its column; nothing is
+         *     written to Jira. `boardsync` transitions the issue to the status of the conflict's
+         *     BoardSync column through the outbound status sync (one `sync_logs` row) and, when Jira
+         *     accepts it, moves the card back to that column. A conflict is resolved once; when the Jira
+         *     call fails the conflict stays unresolved.
+         */
+        post: operations["resolveJiraConflict"];
         delete?: never;
         options?: never;
         head?: never;
@@ -770,6 +802,7 @@ export interface components {
             /** Format: uuid */
             authorId: string;
             text: string;
+            /** @description True after Jira accepted the mirrored comment; remains false for unlinked cards, pending mirroring and failed attempts. */
             syncedToJira: boolean;
             /** Format: date-time */
             createdAt: string;
@@ -891,11 +924,51 @@ export interface components {
             /** Format: uuid */
             cardId: string;
             jiraIssueKey: string;
+            /**
+             * Format: uuid
+             * @description Column the BoardSync user moved the card to
+             */
+            boardColumnId: string;
+            /** @description Title of that column when the conflict was detected */
             boardStatus: string;
+            /**
+             * Format: date-time
+             * @description Time of the BoardSync move
+             */
+            boardChangedAt: string;
+            /**
+             * Format: uuid
+             * @description Column the Jira status maps to
+             */
+            jiraColumnId: string;
+            /** @description Jira status name */
             jiraStatus: string;
+            /**
+             * Format: date-time
+             * @description Time of the Jira change (the webhook `timestamp`)
+             */
+            jiraChangedAt: string;
             /** Format: date-time */
             detectedAt: string;
-            resolution?: string | null;
+            /**
+             * @description Version the card ended with; `jira` is applied automatically on detection
+             * @enum {string}
+             */
+            resolution: "jira" | "boardsync";
+            /**
+             * Format: date-time
+             * @description When an admin resolved the conflict; null while it awaits a decision
+             */
+            resolvedAt: string | null;
+            /** Format: uuid */
+            resolvedById: string | null;
+        };
+        ResolveJiraConflictRequest: {
+            /**
+             * @description `jira` keeps the Jira version, `boardsync` pushes the BoardSync version to Jira
+             * @enum {string}
+             */
+            resolution: "jira" | "boardsync";
         };
         JiraConflictPage: {
             items: components["schemas"]["JiraConflict"][];
@@ -958,6 +1031,15 @@ export interface components {
         };
         /** @description The request conflicts with the current state */
         Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Rate limit exceeded (per client; auth routes have stricter limits); retry later */
+        TooManyRequests: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1035,6 +1117,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     login: {
@@ -1061,6 +1144,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     getCurrentUser: {
@@ -1082,6 +1166,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listBoards: {
@@ -1103,6 +1188,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     createBoard: {
@@ -1129,6 +1215,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     getBoard: {
@@ -1151,8 +1238,10 @@ export interface operations {
                     "application/json": components["schemas"]["BoardDetail"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     deleteBoard: {
@@ -1176,6 +1265,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     updateBoard: {
@@ -1206,6 +1296,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listColumns: {
@@ -1230,6 +1321,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     createColumn: {
@@ -1260,6 +1352,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     deleteColumn: {
@@ -1284,6 +1377,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     updateColumn: {
@@ -1314,6 +1408,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     reorderColumn: {
@@ -1344,6 +1439,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listCards: {
@@ -1368,6 +1464,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     createCard: {
@@ -1398,6 +1495,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     getCard: {
@@ -1422,6 +1520,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     deleteCard: {
@@ -1445,6 +1544,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     updateCard: {
@@ -1475,6 +1575,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     moveCard: {
@@ -1505,6 +1606,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     assignCard: {
@@ -1535,6 +1637,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listLabels: {
@@ -1559,6 +1662,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     createLabel: {
@@ -1589,6 +1693,8 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     deleteLabel: {
@@ -1612,6 +1718,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     updateLabel: {
@@ -1642,6 +1749,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     attachLabel: {
@@ -1668,6 +1776,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     detachLabel: {
@@ -1694,6 +1803,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listComments: {
@@ -1724,6 +1834,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     createComment: {
@@ -1741,7 +1852,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Created comment */
+            /** @description Created comment; `syncedToJira` is false while mirroring is pending */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -1754,6 +1865,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     deleteComment: {
@@ -1778,6 +1890,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listMembers: {
@@ -1802,6 +1915,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     inviteMember: {
@@ -1833,6 +1947,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     removeMember: {
@@ -1858,6 +1973,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     changeMemberRole: {
@@ -1890,6 +2006,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     startJiraOAuth: {
@@ -1916,6 +2033,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     completeJiraOAuth: {
@@ -1943,6 +2061,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
             /** @description Atlassian could not be reached */
             502: {
                 headers: {
@@ -1976,6 +2095,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     disconnectJira: {
@@ -1999,6 +2119,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     importJiraIssues: {
@@ -2138,6 +2259,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     createJiraMapping: {
@@ -2167,6 +2289,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listJiraStatusMappings: {
@@ -2193,6 +2316,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     putJiraStatusMappings: {
@@ -2222,6 +2346,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     receiveJiraWebhook: {
@@ -2284,6 +2409,64 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    resolveJiraConflict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conflictId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveJiraConflictRequest"];
+            };
+        };
+        responses: {
+            /** @description The resolved conflict */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraConflict"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The conflict is already resolved, or Jira must be reconnected for this board */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Jira rate-limited the request; retry later */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Jira is unavailable or did not accept the BoardSync version */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listNotifications: {
@@ -2311,6 +2494,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     markNotificationRead: {
@@ -2333,8 +2517,10 @@ export interface operations {
                     "application/json": components["schemas"]["Notification"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
 }

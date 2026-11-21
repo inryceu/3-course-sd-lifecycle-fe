@@ -106,4 +106,34 @@ describe('NotificationsBell', () => {
     ).toBeInTheDocument();
     expect(api.list).toHaveBeenCalledTimes(1);
   });
+
+  it('renders a jira.conflict notification as readable text linking to the Jira sync page', async () => {
+    api.list.mockResolvedValue({
+      items: [
+        {
+          id: 'n5',
+          type: 'jira.conflict',
+          payload: {
+            conflictId: 'x1',
+            boardId: 'b1',
+            cardId: 'k1',
+            jiraIssueKey: 'KAN-7',
+            boardStatus: 'To Do',
+            jiraStatus: 'Done',
+          },
+          readAt: null,
+          createdAt: '2026-10-27T09:00:00.000Z',
+        },
+      ],
+      nextCursor: null,
+    });
+    renderWithProviders(<NotificationsBell />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Notifications (1 unread)' }));
+
+    const link = within(screen.getByRole('region', { name: 'Notifications list' })).getByRole(
+      'link'
+    );
+    expect(link).toHaveTextContent('Sync conflict on KAN-7: BoardSync "To Do" vs Jira "Done"');
+    expect(link).toHaveAttribute('href', '/jira-sync');
+  });
 });
