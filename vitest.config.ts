@@ -2,6 +2,11 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+// Tests run in a zone east of UTC so date-only handling (KAN-42 deadlines) is exercised the way
+// most users see it. Set here, in the main process, so every worker inherits it; vi.stubEnv('TZ')
+// inside a worker thread does not change the zone on Linux.
+process.env.TZ = 'Europe/Kyiv';
+
 export default defineConfig({
   plugins: [react()],
   test: {

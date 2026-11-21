@@ -8,7 +8,7 @@ import { cardsApi, labelsApi, commentsApi, jiraApi } from '../../api/endpoints';
 import { textOn } from './card-utils';
 
 // A zone east of UTC: local midnight is the previous UTC day.
-vi.stubEnv('TZ', 'Europe/Kyiv');
+// TZ is set to Europe/Kyiv in vitest.config.ts (main process), see the assertion below.
 
 vi.mock('../../api/endpoints', () => ({
   cardsApi: { update: vi.fn(), assign: vi.fn(), delete: vi.fn() },
