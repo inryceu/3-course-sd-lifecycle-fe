@@ -11,7 +11,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\"",
     "test": "vitest run",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage && node scripts/check-module-coverage.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
     "e2e": "playwright test",
     "api:generate": "openapi-typescript ./docs/api/openapi.yaml -o ./src/api/api.generated.ts",
