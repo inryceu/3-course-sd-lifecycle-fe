@@ -28,6 +28,12 @@ vi.mock('../../hooks/useWebSocket', () => ({
     status: 'connected',
   }),
 }));
+vi.mock('../auth', () => ({
+  useAuth: vi.fn(() => ({
+    user: { id: 'u1' },
+    isAuthenticated: true,
+  })),
+}));
 
 vi.mock('../auth', () => ({ useAuth: () => ({ user: { id: 'u-admin' } }) }));
 

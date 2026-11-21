@@ -67,6 +67,11 @@ export function BoardPage() {
       (type) => on(type, onChange)
     );
     offs.push(
+      on('board.updated', () => void queryClient.invalidateQueries({ queryKey: ['labels', boardId] })),
+      on('card.commented', () => void queryClient.invalidateQueries({ queryKey: ['comments'] }))
+    );
+
+    offs.push(
       on('member.removed', (event) => {
         if ((event.payload as { userId?: string }).userId === user?.id) {
           toast.error('You were removed from this board');
@@ -184,11 +189,12 @@ export function BoardPage() {
 
       {openCard && (
         <CardDialog
-          key={openCard.id + openCard.updatedAt}
+          key={openCard.id}
           card={openCard}
           columns={board.columns}
           members={members}
           canEdit={canEditCards}
+          isAdmin={canEditStructure}
           onMove={(cardId, columnId) =>
             move.mutate({ cardId, columnId, position: dropPosition(board, cardId, columnId, null) })
           }
