@@ -39,6 +39,7 @@ function toMessages(body: ErrorBody | null, status: number): string[] {
 class ApiClient {
   private baseUrl: string;
   private accessToken: string | null = null;
+  private socketId: string | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -52,6 +53,11 @@ class ApiClient {
     } else {
       tokenStorage.clear();
     }
+  }
+
+  /** Realtime socket id, sent as `X-Socket-Id` so the server does not echo our own events back. */
+  setSocketId(id: string | null) {
+    this.socketId = id;
   }
 
   getToken(): string | null {
@@ -70,6 +76,10 @@ class ApiClient {
 
     if (this.accessToken) {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
+    }
+
+    if (this.socketId && init.method && init.method !== 'GET') {
+      headers['X-Socket-Id'] = this.socketId;
     }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, { ...init, headers });

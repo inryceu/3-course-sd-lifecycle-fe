@@ -6,13 +6,20 @@ import { boardsApi } from '../../api/endpoints';
 import type { BoardDetail } from '../../api/schema';
 import { ConfirmButton } from '../../components/ConfirmButton';
 import { clsx } from 'clsx';
+import type { ConnectionStatus } from '../../hooks/useWebSocket';
+
+const STATUS_TEXT: Record<ConnectionStatus, string> = {
+  connecting: 'Connecting...',
+  connected: 'Live',
+  offline: 'Offline, retrying...',
+};
 
 export function BoardHeader({
   board,
-  isConnected = false,
+  status = 'connecting',
 }: {
   board: BoardDetail;
-  isConnected?: boolean;
+  status?: ConnectionStatus;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -92,14 +99,18 @@ export function BoardHeader({
       <div>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">{board.title}</h1>
-          <div
-            title={isConnected ? 'Connected to live updates' : 'Disconnected, reconnecting...'}
-            className={clsx(
-              'h-2.5 w-2.5 rounded-full mt-1.5',
-              isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
-            )}
-            aria-label="Connection status"
-          />
+          <span role="status" className="flex items-center gap-1 text-xs text-gray-600">
+            <span
+              aria-hidden="true"
+              className={clsx(
+                'h-2.5 w-2.5 rounded-full',
+                status === 'connected' && 'bg-green-500',
+                status === 'connecting' && 'bg-yellow-500 animate-pulse motion-reduce:animate-none',
+                status === 'offline' && 'bg-red-500 animate-pulse motion-reduce:animate-none'
+              )}
+            />
+            {STATUS_TEXT[status]}
+          </span>
         </div>
         {board.description && <p className="text-gray-600 mt-1">{board.description}</p>}
         <p className="text-xs text-gray-500 mt-1">Your role: {board.myRole}</p>

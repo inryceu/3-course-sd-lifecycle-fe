@@ -24,7 +24,7 @@ vi.mock('../../hooks/useWebSocket', () => ({
     leaveBoard: vi.fn(),
     on: vi.fn(() => vi.fn()),
     onConnect: vi.fn(() => vi.fn()),
-    isConnected: true,
+    status: 'connected',
   }),
 }));
 vi.mock('../auth', () => ({ useAuth: () => ({ user: { id: 'u-admin' } }) }));

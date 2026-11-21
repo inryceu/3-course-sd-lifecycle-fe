@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { boardsApi, cardsApi, columnsApi } from '../../api/endpoints';
 import type { BoardDetail } from '../../api/schema';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { useAuth } from '../auth';
 import { CardDialog } from '../cards';
 import { BoardHeader } from './BoardHeader';
 import { ColumnView } from './ColumnView';
 import { MembersPanel } from './MembersPanel';
-import { useMembers } from './use-members';
+import { membersKey, useMembers } from './use-members';
 import { dropPosition, moveCardInBoard } from './move-card';
 
 interface MoveInput {
@@ -22,7 +24,9 @@ export function BoardPage() {
   const { boardId = '' } = useParams<{ boardId: string }>();
   const queryKey = ['board', boardId];
   const queryClient = useQueryClient();
-  const { joinBoard, leaveBoard, on, onConnect, isConnected } = useWebSocket();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { joinBoard, leaveBoard, on, onConnect, status } = useWebSocket();
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [newColumn, setNewColumn] = useState('');
@@ -46,15 +50,31 @@ export function BoardPage() {
 
   useEffect(() => {
     if (!boardId) return;
-    joinBoard(boardId);
+    // Refetch only after the server has put the socket in the room, so no change is missed in between.
+    const join = () =>
+      joinBoard(boardId, (ack) => {
+        if (ack?.ok) refresh();
+      });
+    join();
+    const offConnect = onConnect(join);
 
-    const offConnect = onConnect(() => {
-      joinBoard(boardId);
-      refresh();
-    });
-
+    // A move in flight already patches the cache and refetches on settle; a refetch now could
+    // overwrite the optimistic position with the pre-move state.
+    const onChange = () => {
+      if (queryClient.isMutating({ mutationKey: ['move'] }) === 0) refresh();
+    };
     const offs = (['card.created', 'card.updated', 'card.moved', 'board.updated'] as const).map(
-      (type) => on(type, refresh)
+      (type) => on(type, onChange)
+    );
+    offs.push(
+      on('member.removed', (event) => {
+        if ((event.payload as { userId?: string }).userId === user?.id) {
+          toast.error('You were removed from this board');
+          navigate('/boards');
+        } else {
+          void queryClient.invalidateQueries({ queryKey: membersKey(boardId) });
+        }
+      })
     );
 
     return () => {
@@ -62,9 +82,10 @@ export function BoardPage() {
       offConnect();
       offs.forEach((off) => off());
     };
-  }, [boardId, joinBoard, leaveBoard, on, onConnect, refresh]);
+  }, [boardId, joinBoard, leaveBoard, on, onConnect, refresh, queryClient, user?.id, navigate]);
 
   const move = useMutation({
+    mutationKey: ['move'],
     mutationFn: ({ cardId, columnId, position }: MoveInput) =>
       cardsApi.move(cardId, { columnId, position }),
     onMutate: async ({ cardId, columnId, position }) => {
@@ -113,7 +134,7 @@ export function BoardPage() {
 
   return (
     <div>
-      <BoardHeader key={board.updatedAt} board={board} isConnected={isConnected} />
+      <BoardHeader key={board.updatedAt} board={board} status={status} />
       <button
         type="button"
         className="btn-secondary text-sm mb-3"
