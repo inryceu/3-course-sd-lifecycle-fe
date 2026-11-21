@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cardsApi, jiraApi } from '../../api/endpoints';
@@ -6,26 +6,28 @@ import type { Card, ColumnWithCards, Member, BoardDetail } from '../../api/schem
 import { ConfirmButton } from '../../components/ConfirmButton';
 import { CardLabels } from './CardLabels';
 import { CardComments } from './CardComments';
+import { errorMessage, toDateInput, toDeadlineIso } from './card-utils';
 
 interface CardDialogProps {
   card: Card;
   columns: ColumnWithCards[];
   members: Member[];
   canEdit: boolean;
+  isAdmin?: boolean;
   onMove: (cardId: string, columnId: string) => void;
   onClose: () => void;
   onChanged: () => void;
 }
 
-function toDateInput(iso?: string | null): string {
-  return iso ? iso.slice(0, 10) : '';
-}
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 export function CardDialog({
   card,
   columns,
   members,
   canEdit,
+  isAdmin = false,
   onMove,
   onClose,
   onChanged,
@@ -36,6 +38,26 @@ export function CardDialog({
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description ?? '');
   const [deadline, setDeadline] = useState(toDateInput(card.deadline));
+  const [commentDraft, setCommentDraft] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  const deadlineChanged = deadline !== toDateInput(card.deadline);
+  const dirty =
+    commentDraft ||
+    title !== card.title ||
+    description !== (card.description ?? '') ||
+    deadlineChanged;
+
+  // Initial focus inside the dialog; give focus back to the opener on close.
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    (titleRef.current && !titleRef.current.disabled
+      ? titleRef.current
+      : dialogRef.current
+    )?.focus();
+    return () => opener?.focus?.();
+  }, []);
 
   const { data: jiraConn } = useQuery({
     queryKey: ['jira-connection', card.boardId],
@@ -63,7 +85,7 @@ export function CardDialog({
       cardsApi.update(card.id, {
         title: title.trim(),
         description: description.trim() || null,
-        deadline: deadline ? new Date(`${deadline}T00:00:00`).toISOString() : null,
+        ...(deadlineChanged ? { deadline: toDeadlineIso(deadline) } : {}),
       }),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: boardQueryKey });
@@ -71,17 +93,15 @@ export function CardDialog({
         ...c,
         title: title.trim(),
         description: description.trim() || null,
-        deadline: deadline ? new Date(`${deadline}T00:00:00`).toISOString() : null,
+        ...(deadlineChanged ? { deadline: toDeadlineIso(deadline) } : {}),
       }));
       return { previous };
     },
     onError: (_err, _var, context) => {
       if (context?.previous) queryClient.setQueryData(boardQueryKey, context.previous);
     },
-    onSettled: () => {
-      onChanged();
-      onClose();
-    },
+    onSuccess: onClose,
+    onSettled: onChanged,
   });
 
   const assign = useMutation({
@@ -105,6 +125,28 @@ export function CardDialog({
     },
   });
 
+  const failed = [save, assign, remove].find((m) => m.isError);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key !== 'Tab' || !dialogRef.current) return;
+    const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (!first) return;
+    if (e.shiftKey && (active === first || active === dialogRef.current)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (title.trim()) save.mutate();
@@ -113,15 +155,19 @@ export function CardDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-      onClick={onClose}
+      onClick={(e) => {
+        // ponytail: a click outside never discards unsaved edits; use Close or Esc.
+        if (e.target === e.currentTarget && !dirty) onClose();
+      }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={`Card ${card.title}`}
         className="card w-full max-w-2xl p-6 flex flex-col max-h-[90vh] overflow-y-auto scrollbar-thin"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === 'Escape' && onClose()}
+        onKeyDown={onKeyDown}
       >
         <div className="flex gap-6 flex-col md:flex-row">
           <div className="flex-1 space-y-4">
@@ -129,12 +175,13 @@ export function CardDialog({
               <div className="mb-2">
                 {jiraConn?.siteUrl ? (
                   <a
-                    href={`${jiraConn.siteUrl}/browse/${card.jiraIssueKey}`}
+                    href={`${jiraConn.siteUrl.replace(/\/+$/, '')}/browse/${card.jiraIssueKey}`}
                     target="_blank"
                     rel="noreferrer"
                     className="text-xs font-semibold text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded"
                   >
-                    🔗 {card.jiraIssueKey}
+                    <span aria-hidden="true">🔗 </span>
+                    {card.jiraIssueKey}
                   </a>
                 ) : (
                   <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded">
@@ -151,6 +198,7 @@ export function CardDialog({
                 </label>
                 <input
                   id="card-title"
+                  ref={titleRef}
                   className="input font-semibold text-lg"
                   maxLength={255}
                   disabled={!canEdit}
@@ -175,7 +223,13 @@ export function CardDialog({
 
             <CardLabels card={card} canEdit={canEdit} />
 
-            <CardComments cardId={card.id} canEdit={canEdit} members={members} />
+            <CardComments
+              cardId={card.id}
+              canEdit={canEdit}
+              isAdmin={isAdmin}
+              members={members}
+              onDraftChange={setCommentDraft}
+            />
           </div>
 
           <div className="w-full md:w-64 space-y-4 shrink-0 bg-gray-50 p-4 rounded-lg h-fit">
@@ -234,6 +288,12 @@ export function CardDialog({
             </div>
           </div>
         </div>
+
+        {failed && (
+          <p role="alert" className="text-sm text-red-600 mt-3">
+            {errorMessage(failed.error)}
+          </p>
+        )}
 
         <div className="flex items-center justify-between pt-4 mt-4 border-t shrink-0">
           <div>

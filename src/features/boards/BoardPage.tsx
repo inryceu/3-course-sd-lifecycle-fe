@@ -47,14 +47,19 @@ export function BoardPage() {
   useEffect(() => {
     if (!boardId) return;
     joinBoard(boardId);
-    const offs = (['card.created', 'card.updated', 'card.moved', 'board.updated'] as const).map(
-      (type) => on(type, refresh)
-    );
+    const offs = [
+      ...(['card.created', 'card.updated', 'card.moved'] as const).map((type) => on(type, refresh)),
+      on('board.updated', () => {
+        refresh();
+        void queryClient.invalidateQueries({ queryKey: ['labels', boardId] });
+      }),
+      on('card.commented', () => void queryClient.invalidateQueries({ queryKey: ['comments'] })),
+    ];
     return () => {
       leaveBoard(boardId);
       offs.forEach((off) => off());
     };
-  }, [boardId, joinBoard, leaveBoard, on, refresh]);
+  }, [boardId, joinBoard, leaveBoard, on, refresh, queryClient]);
 
   const move = useMutation({
     mutationFn: ({ cardId, columnId, position }: MoveInput) =>
@@ -155,11 +160,12 @@ export function BoardPage() {
 
       {openCard && (
         <CardDialog
-          key={openCard.id + openCard.updatedAt}
+          key={openCard.id}
           card={openCard}
           columns={board.columns}
           members={members}
           canEdit={canEditCards}
+          isAdmin={canEditStructure}
           onMove={(cardId, columnId) =>
             move.mutate({ cardId, columnId, position: dropPosition(board, cardId, columnId, null) })
           }
