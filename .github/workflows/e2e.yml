@@ -79,7 +79,7 @@ jobs:
         run: pnpm e2e
 
       - name: Upload report, traces and screenshots
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
