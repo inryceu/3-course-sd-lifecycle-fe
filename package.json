@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
+    "e2e": "playwright test",
     "api:generate": "openapi-typescript ./docs/api/openapi.yaml -o ./src/api/api.generated.ts",
     "api:sync": "node scripts/sync-api.mjs",
     "lint:fix": "eslint . --ext ts,tsx --report-unused-disable-directives --fix"
@@ -29,9 +30,11 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@testing-library/jest-dom": "^6.2.0",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^20.19.43",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
