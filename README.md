@@ -122,7 +122,7 @@ Projects: `setup` (registers a user and stores its session in `e2e/.auth/`), the
 
 CI: `.github/workflows/e2e.yml` checks out the backend next to this repository (the PR's target
 branch), starts `docker-compose.full.yml` with the placeholder `.env.full.example`, runs the suite in
-all three browsers and, always uploads `playwright-report/` and `test-results/` (traces,
+all three browsers and always uploads `playwright-report/` and `test-results/` (traces,
 screenshots) as the `playwright-report` artifact.
 
 ### Performance and compatibility (T-54)
