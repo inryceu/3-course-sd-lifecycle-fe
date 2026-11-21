@@ -7,6 +7,8 @@ import type {
   BoardDetail,
   Card,
   Column,
+  JiraConflict,
+  JiraConflictPage,
   JiraConnectionStatus,
   JiraImportResult,
   JiraMapping,
@@ -19,6 +21,7 @@ import type {
   JiraOAuthStartResponse,
   LoginRequest,
   RegisterRequest,
+  ResolveJiraConflictRequest,
   User,
 } from './schema';
 
@@ -144,4 +147,13 @@ export const jiraApi = {
 
   saveStatusMappings: (boardId: string, mappings: { jiraStatusId: string; columnId: string }[]) =>
     api.put<JiraStatusMapping[]>('/jira/status-mappings', { boardId, mappings }),
+
+  conflicts: (boardId: string, cursor?: string) =>
+    api.get<JiraConflictPage>(
+      `/jira/conflicts?boardId=${encodeURIComponent(boardId)}` +
+        (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '')
+    ),
+
+  resolveConflict: (conflictId: string, resolution: ResolveJiraConflictRequest['resolution']) =>
+    api.post<JiraConflict>(`/jira/conflicts/${conflictId}/resolve`, { resolution }),
 };
