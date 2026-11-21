@@ -20,8 +20,16 @@ vi.mock('../../api/endpoints', () => ({
   cardsApi: api.cards,
 }));
 vi.mock('../../hooks/useWebSocket', () => ({
-  useWebSocket: () => ({ joinBoard: vi.fn(), leaveBoard: vi.fn(), on: () => () => undefined }),
+  useWebSocket: () => ({
+    joinBoard: vi.fn(),
+    leaveBoard: vi.fn(),
+    on: vi.fn(() => vi.fn()),
+    onConnect: vi.fn(() => vi.fn()),
+    status: 'connected',
+  }),
 }));
+
+vi.mock('../auth', () => ({ useAuth: () => ({ user: { id: 'u-admin' } }) }));
 
 function boardAs(myRole: BoardRole): BoardDetail {
   const base = { boardId: 'b1', labelIds: [], createdAt: '', updatedAt: '' };
