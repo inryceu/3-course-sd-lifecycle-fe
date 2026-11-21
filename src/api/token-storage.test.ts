@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { tokenStorage } from './token-storage';
 
 describe('tokenStorage', () => {
@@ -16,8 +16,12 @@ describe('tokenStorage', () => {
     expect(tokenStorage.get()).toBeNull();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('handles storage errors gracefully (e.g., incognito mode constraints)', () => {
-    const storageMock = vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+    vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
       throw new Error('Access denied');
     });
 
@@ -25,6 +29,5 @@ describe('tokenStorage', () => {
     expect(() => tokenStorage.set('token')).not.toThrow();
     expect(() => tokenStorage.clear()).not.toThrow();
 
-    storageMock.mockRestore();
   });
 });
