@@ -8,20 +8,33 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 
 const notificationsKey = ['notifications'] as const;
 
-interface ReminderPayload {
+interface NotificationPayload {
   cardId?: string;
   boardId?: string;
   cardTitle?: string;
   deadline?: string;
+  jiraIssueKey?: string;
+  boardStatus?: string;
+  jiraStatus?: string;
 }
 
 function describe(notification: Notification): string {
-  const payload = (notification.payload ?? {}) as ReminderPayload;
+  const payload = (notification.payload ?? {}) as NotificationPayload;
   if (notification.type === 'deadline.reminder') {
     const due = payload.deadline ? new Date(payload.deadline).toLocaleString() : 'soon';
     return `"${payload.cardTitle ?? 'Card'}" is due ${due}`;
   }
+  if (notification.type === 'jira.conflict') {
+    return `Sync conflict on ${payload.jiraIssueKey ?? 'a card'}: BoardSync "${payload.boardStatus ?? '?'}" vs Jira "${payload.jiraStatus ?? '?'}"`;
+  }
   return notification.type;
+}
+
+/** Conflicts are resolved on the Jira sync page; everything else opens its board. */
+function hrefOf(notification: Notification): string | undefined {
+  if (notification.type === 'jira.conflict') return '/jira-sync';
+  const boardId = (notification.payload as NotificationPayload | undefined)?.boardId;
+  return boardId ? `/boards/${boardId}` : undefined;
 }
 
 /** Header bell: unread count, the user's notifications (newest first), mark read, live updates. */
@@ -47,7 +60,9 @@ export function NotificationsBell() {
               }
             : page
         );
-        toast(describe(notification), { icon: '⏰' });
+        toast(describe(notification), {
+          icon: notification.type === 'jira.conflict' ? '⚠️' : '⏰',
+        });
       }),
     [on, queryClient]
   );
@@ -88,18 +103,14 @@ export function NotificationsBell() {
           ) : (
             <ul className="max-h-96 divide-y divide-gray-100 overflow-y-auto">
               {items.map((n) => {
-                const boardId = (n.payload as ReminderPayload | undefined)?.boardId;
+                const href = hrefOf(n);
                 return (
                   <li
                     key={n.id}
                     className={`p-3 text-sm ${n.readAt ? 'text-gray-500' : 'bg-primary-50'}`}
                   >
-                    {boardId ? (
-                      <Link
-                        to={`/boards/${boardId}`}
-                        onClick={() => setOpen(false)}
-                        className="hover:underline"
-                      >
+                    {href ? (
+                      <Link to={href} onClick={() => setOpen(false)} className="hover:underline">
                         {describe(n)}
                       </Link>
                     ) : (

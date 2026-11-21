@@ -28,3 +28,4 @@ export type JiraProject = Schemas['JiraProject'];
 export type InviteMemberRequest = Schemas['InviteMemberRequest'];
 export type JiraConflict = Schemas['JiraConflict'];
 export type JiraConflictPage = Schemas['JiraConflictPage'];
+export type ResolveJiraConflictRequest = Schemas['ResolveJiraConflictRequest'];

@@ -6,6 +6,7 @@ import { ConfirmButton } from '../../components/ConfirmButton';
 import { JiraImportPanel } from './JiraImportPanel';
 import { JiraConflictsPanel } from './JiraConflictsPanel';
 
+/** Remembers which board started the flow, so the callback page can link back to it. */
 export const JIRA_BOARD_KEY = 'jiraConnectBoardId';
 
 function JiraBoardRow({ board }: { board: Board }) {

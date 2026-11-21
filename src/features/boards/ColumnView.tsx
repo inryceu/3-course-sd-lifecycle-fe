@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DragEvent, FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { cardsApi, columnsApi } from '../../api/endpoints';
@@ -84,12 +84,19 @@ export function ColumnView({
     if (newCard.trim()) addCard.mutate(newCard.trim());
   };
 
-  const getDeadlineBadge = (deadline: string | null | undefined) => {
-    if (!deadline) return null;
+  // Re-render every minute so "Due soon" turns into "Overdue" without another update.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
-    const due = new Date(deadline).getTime();
-    const now = new Date().getTime();
-    const hoursRemaining = (due - now) / (1000 * 60 * 60);
+  // A card in a DONE column is finished: no deadline warning, whatever the date.
+  const isDone = column.type === 'DONE';
+  const getDeadlineBadge = (deadline: string | null | undefined) => {
+    if (!deadline || isDone) return null;
+
+    const hoursRemaining = (new Date(deadline).getTime() - now) / (1000 * 60 * 60);
 
     if (hoursRemaining < 0) {
       return (
@@ -223,7 +230,7 @@ export function ColumnView({
             <button type="button" className="text-left w-full" onClick={() => onOpenCard(card)}>
               <span className="block font-medium">{card.title}</span>
               {card.deadline && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-2">
                   <span className="block text-xs text-gray-500">
                     Due {new Date(card.deadline).toLocaleDateString()}
                   </span>
