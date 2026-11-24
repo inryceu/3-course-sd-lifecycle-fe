@@ -593,6 +593,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jira/sync-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sync logs of a board, newest first (Admin)
+         * @description Returns paginated sync logs with optional status filter. Cursor-based pagination.
+         */
+        get: operations["listJiraSyncLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/sync-logs/{logId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry a failed sync log (Admin)
+         * @description Retries a failed outbound status move or comment sync. Only logs with status FAILED
+         *     and outcome !== unknown can be retried.
+         */
+        post: operations["retryJiraSyncLog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications": {
         parameters: {
             query?: never;
@@ -858,6 +899,7 @@ export interface components {
             expiresAt?: string | null;
             /** Format: date-time */
             connectedAt?: string | null;
+            requiresReconnect: boolean;
         };
         JiraImportRequest: {
             /** Format: uuid */
@@ -973,6 +1015,34 @@ export interface components {
         JiraConflictPage: {
             items: components["schemas"]["JiraConflict"][];
             nextCursor?: string | null;
+        };
+        /** @enum {string} */
+        JiraSyncDirection: "TO_JIRA" | "FROM_JIRA";
+        /** @enum {string} */
+        JiraSyncStatus: "SUCCESS" | "FAILED" | "CONFLICT";
+        JiraSyncLog: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            boardId: string;
+            direction: components["schemas"]["JiraSyncDirection"];
+            status: components["schemas"]["JiraSyncStatus"];
+            payload?: {
+                [key: string]: unknown;
+            } | null;
+            errorMessage?: string | null;
+            /** Format: uuid */
+            mappingId?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        JiraSyncLogPage: {
+            items: components["schemas"]["JiraSyncLog"][];
+            nextCursor?: string | null;
+        };
+        JiraSyncRetryResult: {
+            status: components["schemas"]["JiraSyncStatus"];
+            reason: string | null;
         };
         Notification: {
             /** Format: uuid */
@@ -2460,6 +2530,73 @@ export interface operations {
             };
             /** @description Jira is unavailable or did not accept the BoardSync version */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listJiraSyncLogs: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+                /** @description Page size */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from the previous page's `nextCursor` */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description Filter by sync status */
+                status?: "SUCCESS" | "FAILED" | "CONFLICT";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of sync logs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraSyncLogPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    retryJiraSyncLog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                logId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The retry result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraSyncRetryResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The log cannot be retried (wrong status, missing data, or already retried) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

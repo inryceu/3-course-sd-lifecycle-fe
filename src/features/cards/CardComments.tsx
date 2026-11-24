@@ -13,12 +13,14 @@ export function CardComments({
   isAdmin,
   members,
   onDraftChange,
+  jiraIssueKey,
 }: {
   cardId: string;
   canEdit: boolean;
   isAdmin: boolean;
   members: Member[];
   onDraftChange?: (hasDraft: boolean) => void;
+  jiraIssueKey?: string | null;
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -122,13 +124,14 @@ export function CardComments({
               !comment.id.startsWith('temp-') && (isAdmin || comment.authorId === user?.id);
             return (
               <li key={comment.id} className="bg-gray-50 p-2 rounded text-sm">
-                <div className="flex justify-between items-start gap-2 mb-1">
-                  <span className="font-medium text-xs text-gray-700">{name}</span>
-                  <span className="text-[10px] text-gray-500">
-                    {new Date(comment.createdAt).toLocaleString()}
-                    {comment.syncedToJira && ' • Jira'}
-                  </span>
-                </div>
+<div className="flex justify-between items-start gap-2 mb-1">
+                <span className="font-medium text-xs text-gray-700">{name}</span>
+                <span className="text-[10px] text-gray-500">
+                  {new Date(comment.createdAt).toLocaleString()}
+                  {jiraIssueKey && comment.syncedToJira && ' • Synced to Jira'}
+                  {jiraIssueKey && !comment.syncedToJira && ' • Jira sync pending'}
+                </span>
+              </div>
                 <p className="text-gray-800 whitespace-pre-wrap">{comment.text}</p>
                 {canDelete && (
                   <button

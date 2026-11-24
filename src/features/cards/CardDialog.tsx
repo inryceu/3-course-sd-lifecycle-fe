@@ -229,6 +229,7 @@ export function CardDialog({
               isAdmin={isAdmin}
               members={members}
               onDraftChange={setCommentDraft}
+              jiraIssueKey={card.jiraIssueKey}
             />
           </div>
 
