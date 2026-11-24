@@ -213,7 +213,7 @@ Short summary; [`CONTRIBUTING.md`](CONTRIBUTING.md) is the authority and wins if
 1. **Create a board** — On **Boards**, type a title and click **Create board**. A new board starts with the columns To Do, In Progress and Done; on the board page you can add more with **Add column**, rename or reorder them.
 2. **Add cards** — Type a title into **Add a card** at the bottom of a column and click **Add**. Click a card to edit its title, description, deadline, column and assignee.
 3. **Drag & drop** — Drag a card to another position or column. Everyone with the board open sees the change without reloading.
-4. **Members** — Click **Members (n)** on a board to open the panel; the board Admin invites a registered user by e-mail as MEMBER or VIEWER, changes roles or removes members.
+4. **Members** — Click **Members (n)** on a board to open the panel. Every board member sees the list with roles; the board Admin additionally invites a registered user by e-mail as MEMBER or VIEWER, changes roles and removes members (with a confirmation). Members and Viewers see the panel read-only, and backend errors (unknown e-mail, duplicate invite, last Admin) are shown as a toast.
 5. **Connect Jira** — Open **Jira Sync** in the top navigation and click **Connect Jira** next to a board (board Admin only); complete the Atlassian OAuth 2.0 flow.
 6. **Import issues** — On **Jira Sync**, enter the Jira project key and click **Import open issues**; adjust the status → column mapping and click **Save mapping**.
 

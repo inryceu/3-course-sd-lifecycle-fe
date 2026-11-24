@@ -16,7 +16,7 @@ export function MembersPanel({ boardId, isAdmin }: { boardId: string; isAdmin: b
   const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<InviteRole>('MEMBER');
-  const { data: members } = useMembers(boardId);
+  const { data: members, isLoading } = useMembers(boardId);
   const refresh = () => void queryClient.invalidateQueries({ queryKey: membersKey(boardId) });
 
   // Errors (unknown e-mail, last Admin, ...) are shown by the API client's toast.
@@ -45,6 +45,7 @@ export function MembersPanel({ boardId, isAdmin }: { boardId: string; isAdmin: b
   return (
     <section aria-label="Board members" className="card p-4 mb-4">
       <h2 className="font-semibold mb-2">Members</h2>
+      {isLoading && <p className="text-sm text-gray-500">Loading members...</p>}
       <ul className="divide-y divide-gray-100">
         {members?.map((member: Member) => (
           <li key={member.userId} className="flex items-center justify-between gap-2 py-2 text-sm">
@@ -84,6 +85,9 @@ export function MembersPanel({ boardId, isAdmin }: { boardId: string; isAdmin: b
           </li>
         ))}
       </ul>
+      {!isLoading && members?.length === 0 && (
+        <p className="text-sm text-gray-500">No members.</p>
+      )}
       {isAdmin && (
         <form onSubmit={onInvite} className="flex flex-wrap gap-2 mt-3" aria-label="Invite member">
           <input

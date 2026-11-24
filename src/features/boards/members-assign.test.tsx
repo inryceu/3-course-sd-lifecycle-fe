@@ -94,6 +94,8 @@ describe('Members panel', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Members (2)' }));
     const panel = screen.getByRole('region', { name: 'Board members' });
+    expect(within(panel).getByLabelText('Role of alice')).toHaveValue('ADMIN');
+    expect(within(panel).getByLabelText('Role of bob')).toHaveValue('MEMBER');
     await userEvent.type(
       within(panel).getByLabelText('E-mail of a registered user'),
       'carol@example.com'
@@ -114,15 +116,86 @@ describe('Members panel', () => {
     expect(api.members.remove).toHaveBeenCalledWith('b1', 'u-bob');
   });
 
-  it('shows a Member the list without management controls', async () => {
+  it('shows the new role in the list after the Admin changes it', async () => {
+    api.boards.get.mockResolvedValue(boardAs('ADMIN'));
+    let bobRole: BoardRole = 'MEMBER';
+    api.members.list.mockImplementation(() => [MEMBERS[0], { ...MEMBERS[1], role: bobRole }]);
+    api.members.changeRole.mockImplementation(() => {
+      bobRole = 'VIEWER';
+      return member('u-bob', 'bob', 'VIEWER');
+    });
+    renderWithProviders(route, '/boards/b1');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Members (2)' }));
+    const panel = screen.getByRole('region', { name: 'Board members' });
+    await userEvent.selectOptions(within(panel).getByLabelText('Role of bob'), 'VIEWER');
+
+    await waitFor(() =>
+      expect(within(panel).getByLabelText('Role of bob')).toHaveValue('VIEWER')
+    );
+  });
+
+  it('keeps the member when the Admin cancels the removal', async () => {
+    api.boards.get.mockResolvedValue(boardAs('ADMIN'));
+    renderWithProviders(route, '/boards/b1');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Members (2)' }));
+    const panel = screen.getByRole('region', { name: 'Board members' });
+    const bobRow = within(panel).getByText('bob').closest('li') as HTMLElement;
+    await userEvent.click(within(bobRow).getByRole('button', { name: 'Remove' }));
+    await userEvent.click(within(bobRow).getByRole('button', { name: 'Cancel' }));
+
+    expect(api.members.remove).not.toHaveBeenCalled();
+    expect(within(panel).getByText('bob')).toBeInTheDocument();
+    expect(within(bobRow).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+  });
+
+  it('shows a Member the list with roles and no management controls', async () => {
     api.boards.get.mockResolvedValue(boardAs('MEMBER'));
     renderWithProviders(route, '/boards/b1');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Members (2)' }));
     const panel = screen.getByRole('region', { name: 'Board members' });
+    expect(within(panel).getByText('alice')).toBeInTheDocument();
     expect(within(panel).getByText('bob')).toBeInTheDocument();
+    expect(within(panel).getByText('ADMIN')).toBeInTheDocument();
+    expect(within(panel).getByText('MEMBER')).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument();
     expect(within(panel).queryByLabelText('Role of bob')).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
+  });
+
+  it('shows a Viewer the list with roles and no management controls', async () => {
+    api.boards.get.mockResolvedValue(boardAs('VIEWER'));
+    renderWithProviders(route, '/boards/b1');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Members (2)' }));
+    const panel = screen.getByRole('region', { name: 'Board members' });
+    expect(within(panel).getByText('alice')).toBeInTheDocument();
+    expect(within(panel).getByText('bob')).toBeInTheDocument();
+    expect(within(panel).getByText('ADMIN')).toBeInTheDocument();
+    expect(within(panel).getByText('MEMBER')).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument();
+    expect(within(panel).queryByLabelText('Role of bob')).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
+  });
+
+  it('shows a loading message until the members arrive', async () => {
+    api.boards.get.mockResolvedValue(boardAs('ADMIN'));
+    api.members.list.mockReturnValue(new Promise(() => undefined));
+    renderWithProviders(route, '/boards/b1');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Members (0)' }));
+    expect(screen.getByText('Loading members...')).toBeInTheDocument();
+  });
+
+  it('shows an empty message when the board has no members', async () => {
+    api.boards.get.mockResolvedValue(boardAs('ADMIN'));
+    api.members.list.mockResolvedValue([]);
+    renderWithProviders(route, '/boards/b1');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Members (0)' }));
+    expect(await screen.findByText('No members.')).toBeInTheDocument();
   });
 });
 
