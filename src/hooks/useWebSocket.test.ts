@@ -17,7 +17,7 @@ function createSocket() {
     connected: true,
     active: true,
     on: vi.fn((event: string, cb: Listener) => void listeners.set(event, cb)),
-    emit: vi.fn<unknown[], void>(),
+    emit: vi.fn<(...args: unknown[]) => void>(),
     connect: vi.fn(),
     disconnect: vi.fn(),
     fire: (event: string, ...args: unknown[]) => listeners.get(event)?.(...args),

@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/health/alive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Liveness probe (the process only, the database is not checked) */
+        get: operations["getHealthAlive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Readiness probe (the database is reachable) */
+        get: operations["getHealthReady"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -559,6 +593,8 @@ export interface paths {
          * @description A conflict is a BoardSync user move of a linked card and a Jira status change of the same
          *     issue at most 5 seconds apart (either order) that put the card in different columns.
          *     Jira wins by default (`resolution: jira`, `resolvedAt: null`) until an admin resolves it.
+         *     A move that waited in the outbox while Jira was unreachable also conflicts with any later
+         *     Jira status change of the issue to another column: the stale move is dropped, not sent.
          */
         get: operations["listJiraConflicts"];
         put?: never;
@@ -587,6 +623,94 @@ export interface paths {
          *     call fails the conflict stays unresolved.
          */
         post: operations["resolveJiraConflict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/sync-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sync logs of a board, newest first (Admin)
+         * @description Returns paginated sync logs with optional status filter. Cursor-based pagination.
+         */
+        get: operations["listJiraSyncLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/sync/outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Queued outbound Jira changes of a board, newest first, dead letters by default (Admin)
+         * @description A user move of a linked card is stored in the durable `sync_outbox` in the same transaction
+         *     as the move and sent to Jira by a background worker. Failed attempts are retried with capped
+         *     exponential backoff (see `OUTBOX_*` in the README) and per-card order is kept. A row that
+         *     keeps failing for `OUTBOX_MAX_AGE_HOURS` (default 24) or hits a permanent error becomes
+         *     `DEAD`, the board Admins get a `jira.sync.failed` notification, and the row blocks later
+         *     rows of the same card until it is requeued.
+         */
+        get: operations["listJiraSyncOutbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/sync/outbox/requeue-dead": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Requeue every dead outbox row of a board that is not blocked (Admin)
+         * @description Bulk form of the single requeue, for the end of a long Jira outage. Rows are handled oldest
+         *     first, at most 500 per call; a row that an earlier row of the same card still blocks is
+         *     counted in `skipped` (call again once the earlier row was sent).
+         */
+        post: operations["requeueDeadJiraSyncOutbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jira/sync/outbox/{outboxId}/requeue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Requeue one dead outbox row (Admin)
+         * @description Sets the row back to `PENDING` with a fresh retry budget. A newer pending row of the same
+         *     card is merged into it, so the latest move wins.
+         */
+        post: operations["requeueJiraSyncOutboxRow"];
         delete?: never;
         options?: never;
         head?: never;
@@ -650,6 +774,13 @@ export interface components {
             status: "ok" | "error";
             /** @enum {string} */
             database: "up" | "down";
+            /** Format: date-time */
+            timestamp?: string;
+            uptime?: number;
+        };
+        Liveness: {
+            /** @enum {string} */
+            status: "ok";
             /** Format: date-time */
             timestamp?: string;
             uptime?: number;
@@ -858,6 +989,35 @@ export interface components {
             expiresAt?: string | null;
             /** Format: date-time */
             connectedAt?: string | null;
+            /**
+             * @description True only when the refresh token is gone (rejected with invalid_grant) and the access
+             *     token has expired. An expired access token alone is refreshed on the next call.
+             */
+            requiresReconnect: boolean;
+        };
+        /** @enum {string} */
+        JiraSyncDirection: "TO_JIRA" | "FROM_JIRA";
+        /** @enum {string} */
+        JiraSyncStatus: "SUCCESS" | "FAILED" | "CONFLICT";
+        JiraSyncLog: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            boardId: string;
+            direction: components["schemas"]["JiraSyncDirection"];
+            status: components["schemas"]["JiraSyncStatus"];
+            payload?: {
+                [key: string]: unknown;
+            } | null;
+            errorMessage?: string | null;
+            /** Format: uuid */
+            mappingId?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        JiraSyncLogPage: {
+            items: components["schemas"]["JiraSyncLog"][];
+            nextCursor?: string | null;
         };
         JiraImportRequest: {
             /** Format: uuid */
@@ -974,11 +1134,56 @@ export interface components {
             items: components["schemas"]["JiraConflict"][];
             nextCursor?: string | null;
         };
+        OutboxEntry: {
+            /** Format: uuid */
+            id: string;
+            /** @description Global order of the row (a bigint as a string); per-card order follows it */
+            sequence: string;
+            /** @example TRANSITION_ISSUE */
+            operation: string;
+            /** Format: uuid */
+            cardId: string;
+            jiraIssueKey?: string | null;
+            /** @description Column the move should put the issue's status in */
+            targetColumnId?: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "IN_PROGRESS" | "SENT" | "DEAD";
+            attempts: number;
+            /** @example attempts_exhausted */
+            errorCode?: string | null;
+            /** @description Sanitized, single line, never a Jira response body */
+            lastError?: string | null;
+            /** Format: date-time */
+            availableAt: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            sentAt?: string | null;
+            /** Format: date-time */
+            deadAt?: string | null;
+        };
+        OutboxPage: {
+            items: components["schemas"]["OutboxEntry"][];
+            nextCursor?: string | null;
+        };
+        OutboxRequeueSummary: {
+            requeued: number;
+            /** @description Dead rows left as they are because an earlier row of the card blocks them */
+            skipped: number;
+        };
         Notification: {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            type: "deadline.reminder" | "jira.conflict" | "board.invited";
+            type: "deadline.reminder" | "jira.conflict" | "board.invited" | "jira.sync.failed";
+            /**
+             * @description Per type. `jira.sync.failed` (a queued Jira move was dead-lettered; sent to the board
+             *     Admins and to the member who moved the card, also through `notification.created`)
+             *     carries `outboxId`, `boardId`, `cardId`, `jiraIssueKey`, `operation`, `attempts` and
+             *     `errorCode`; never tokens or raw Jira bodies.
+             */
             payload?: {
                 [key: string]: unknown;
             };
@@ -1065,6 +1270,55 @@ export interface components {
 export type $defs = Record<string, never>;
 export interface operations {
     getHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service and database are up */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+            /** @description Database is not reachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    getHealthAlive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The process is running */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Liveness"];
+                };
+            };
+        };
+    };
+    getHealthReady: {
         parameters: {
             query?: never;
             header?: never;
@@ -2467,6 +2721,135 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    listJiraSyncLogs: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+                /** @description Page size */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from the previous page's `nextCursor` */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description Filter by sync status */
+                status?: "SUCCESS" | "FAILED" | "CONFLICT";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of sync logs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraSyncLogPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listJiraSyncOutbox: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+                /** @description Row status to list */
+                status?: "PENDING" | "IN_PROGRESS" | "SENT" | "DEAD";
+                /** @description Page size */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from the previous page's `nextCursor` */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of outbox rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutboxPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    requeueDeadJiraSyncOutbox: {
+        parameters: {
+            query: {
+                boardId: components["parameters"]["BoardIdQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many dead rows were requeued and how many were left */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutboxRequeueSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    requeueJiraSyncOutboxRow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                outboxId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requeued row */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutboxEntry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The row is not dead, or an earlier row of the same card blocks it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listNotifications: {

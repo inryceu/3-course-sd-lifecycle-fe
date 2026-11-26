@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { InfiniteData } from '@tanstack/react-query';
@@ -7,18 +7,26 @@ import { useAuth } from '../auth';
 import type { Member, CommentPage, Comment } from '../../api/schema';
 import { errorMessage } from './card-utils';
 
+/** The mirror to Jira has a 5 s budget on the server; after this grace an unsynced comment failed. */
+const JIRA_SYNC_GRACE_MS = 10_000;
+
+const isPastGrace = (comment: Comment, now: number) =>
+  now - new Date(comment.createdAt).getTime() >= JIRA_SYNC_GRACE_MS;
+
 export function CardComments({
   cardId,
   canEdit,
   isAdmin,
   members,
   onDraftChange,
+  jiraIssueKey,
 }: {
   cardId: string;
   canEdit: boolean;
   isAdmin: boolean;
   members: Member[];
   onDraftChange?: (hasDraft: boolean) => void;
+  jiraIssueKey?: string | null;
 }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -40,6 +48,30 @@ export function CardComments({
   const loaded = data?.pages.flatMap((p) => p.items) ?? [];
   const loadedIds = new Set(loaded.map((c) => c.id));
   const comments = [...loaded, ...added.filter((c) => !loadedIds.has(c.id))];
+
+  // A pending comment is re-checked once its grace is over: refetch (it may have synced) and
+  // re-render (otherwise it is shown as failed).
+  const [now, setNow] = useState(() => Date.now());
+  const pendingUntil = jiraIssueKey
+    ? Math.max(
+        0,
+        ...comments
+          .filter((c) => !c.syncedToJira)
+          .map((c) => new Date(c.createdAt).getTime() + JIRA_SYNC_GRACE_MS)
+      )
+    : 0;
+  useEffect(() => {
+    if (pendingUntil <= Date.now()) return;
+    const timer = setTimeout(
+      () => {
+        setNow(Date.now());
+        void queryClient.invalidateQueries({ queryKey });
+      },
+      pendingUntil - Date.now() + 50
+    );
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingUntil, cardId]);
 
   const create = useMutation({
     mutationFn: (newText: string) => commentsApi.create(cardId, newText),
@@ -126,7 +158,14 @@ export function CardComments({
                   <span className="font-medium text-xs text-gray-700">{name}</span>
                   <span className="text-[10px] text-gray-500">
                     {new Date(comment.createdAt).toLocaleString()}
-                    {comment.syncedToJira && ' • Jira'}
+                    {jiraIssueKey && comment.syncedToJira && ' • Synced to Jira'}
+                    {jiraIssueKey &&
+                      !comment.syncedToJira &&
+                      !isPastGrace(comment, now) &&
+                      ' • Jira sync pending'}
+                    {jiraIssueKey && !comment.syncedToJira && isPastGrace(comment, now) && (
+                      <span className="text-red-600"> • Not synced to Jira</span>
+                    )}
                   </span>
                 </div>
                 <p className="text-gray-800 whitespace-pre-wrap">{comment.text}</p>
