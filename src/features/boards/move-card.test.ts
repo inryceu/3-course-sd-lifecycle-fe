@@ -73,3 +73,28 @@ describe('dropPosition', () => {
     expect(dropPosition(board, 'a', 'todo', null)).toBe(2);
   });
 });
+
+describe('move-card boundaries', () => {
+  it('moveCardInBoard returns the same board for an unknown card', () => {
+    expect(moveCardInBoard(board, 'missing', 'done', 0)).toBe(board);
+  });
+
+  it('moveCardInBoard clamps a position past the end to the end', () => {
+    expect(ids(moveCardInBoard(board, 'a', 'done', 99), 1)).toEqual(['d0', 'a1']);
+  });
+
+  it('dropPosition falls back to the end for a "before" card that is not in the column', () => {
+    expect(dropPosition(board, 'a', 'done', 'ghost')).toBe(1);
+  });
+
+  it('dropPosition treats an unknown column as empty', () => {
+    expect(dropPosition(board, 'a', 'nowhere', null)).toBe(0);
+    expect(dropPosition(board, 'a', 'nowhere', 'b')).toBe(0);
+  });
+
+  it('dropping a card in front of itself keeps its place', () => {
+    expect(dropPosition(board, 'b', 'todo', 'b')).toBe(1);
+    expect(dropPosition(board, 'a', 'todo', 'a')).toBe(0);
+    expect(dropPosition(board, 'c', 'todo', 'c')).toBe(2);
+  });
+});

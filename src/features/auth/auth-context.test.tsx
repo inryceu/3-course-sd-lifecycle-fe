@@ -12,11 +12,11 @@ const session = {
   user: { id: 'u2', displayName: 'New User', email: 'test@example.com' },
 };
 
-const mockGetToken = vi.fn<[], string | null>();
-const mockSetToken = vi.fn<[string | null], void>();
-const mockMe = vi.fn<[{ silent?: boolean }?], Promise<unknown>>();
-const mockLogin = vi.fn<[unknown], Promise<unknown>>();
-const mockRegister = vi.fn<[RegisterRequest], Promise<unknown>>();
+const mockGetToken = vi.fn<() => string | null>();
+const mockSetToken = vi.fn<(token: string | null) => void>();
+const mockMe = vi.fn<(opts?: { silent?: boolean }) => Promise<unknown>>();
+const mockLogin = vi.fn<(body: unknown) => Promise<unknown>>();
+const mockRegister = vi.fn<(body: RegisterRequest) => Promise<unknown>>();
 
 vi.mock('../../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/client')>()),

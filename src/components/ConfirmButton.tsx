@@ -5,6 +5,9 @@ interface ConfirmButtonProps {
   onConfirm: () => void;
   className?: string;
   disabled?: boolean;
+  /** Accessible name of the first button and of its confirm step (e.g. "Remove bob"). */
+  ariaLabel?: string;
+  title?: string;
 }
 
 /** Two-step destructive button: the first click asks, the second one acts (no browser dialog). */
@@ -13,6 +16,8 @@ export function ConfirmButton({
   onConfirm,
   className = 'btn-danger text-sm',
   disabled,
+  ariaLabel,
+  title,
 }: ConfirmButtonProps) {
   const [asking, setAsking] = useState(false);
 
@@ -22,6 +27,8 @@ export function ConfirmButton({
         type="button"
         className={className}
         disabled={disabled}
+        title={title}
+        aria-label={ariaLabel}
         onClick={() => setAsking(true)}
       >
         {label}
@@ -33,6 +40,7 @@ export function ConfirmButton({
       <button
         type="button"
         className="btn-danger text-sm"
+        aria-label={ariaLabel && `Confirm ${ariaLabel.toLowerCase()}`}
         onClick={() => {
           setAsking(false);
           onConfirm();

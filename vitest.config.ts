@@ -18,8 +18,11 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text-summary', 'lcov', 'json-summary', 'html'],
       exclude: ['node_modules/', 'test/', '*.config.*', 'dist/'],
-      // Agreed in the backlog index (T-40 / KAN-51): >= 70 % lines for the whole repository.
-      thresholds: { lines: 70 },
+      // Backlog index (T-40 / KAN-51): >= 70 % lines for the whole repository; raised to 75 % by
+      // KAN-66 (measured 83 %). The boards and cards features have their own bar, checked by
+      // scripts/check-module-coverage.mjs: a glob threshold here would remove those files from
+      // this global figure (Vitest 1.x), which then fails at 70 %.
+      thresholds: { lines: 75 },
     },
   },
   resolve: {
