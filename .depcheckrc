@@ -1,0 +1,6 @@
+# False positives: used by config files (Tailwind/PostCSS) and `vitest --coverage`.
+ignores:
+  - "@vitest/coverage-v8"
+  - "autoprefixer"
+  - "postcss"
+  - "tailwindcss"
