@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "boardsync-frontend",
   "private": true,
   "version": "0.1.0",
@@ -16,7 +16,9 @@
     "e2e": "playwright test",
     "api:generate": "openapi-typescript ./docs/api/openapi.yaml -o ./src/api/api.generated.ts",
     "api:sync": "node scripts/sync-api.mjs",
-    "lint:fix": "eslint . --ext ts,tsx --report-unused-disable-directives --fix"
+    "lint:fix": "eslint . --ext ts,tsx --report-unused-disable-directives --fix",
+    "audit": "pnpm audit --audit-level=critical",
+    "depcheck": "depcheck"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.17.0",
@@ -26,14 +28,13 @@
     "react-hot-toast": "^2.6.1",
     "react-router-dom": "^6.21.0",
     "socket.io-client": "^4.7.2",
-    "tailwind-merge": "^2.2.0",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",
     "@testing-library/jest-dom": "^6.2.0",
     "@testing-library/react": "^14.1.2",
-    "@testing-library/user-event": "^14.6.7",
+    "@testing-library/user-web": "^14.6.7",
     "@types/node": "^20.19.43",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
@@ -43,6 +44,7 @@
     "@vitest/coverage-v8": "^1.2.0",
     "@vitest/ui": "^1.2.0",
     "autoprefixer": "^10.4.16",
+    "depcheck": "^1.4.7",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react-hooks": "^4.6.0",
@@ -57,7 +59,16 @@
     "vitest": "^1.2.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "20.20.2"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "depcheck": {
+    "ignoreDeps": [
+      "@vitest/coverage-v8",
+      "autoprefixer",
+      "postcss",
+      "tailwindcss",
+      "zustand"
+    ]
+  }
 }

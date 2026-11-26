@@ -1,0 +1,8 @@
+{
+  "ignoreDeps": [
+    "@vitest/coverage-v8",
+    "autoprefixer",
+    "postcss",
+    "tailwindcss"
+  ]
+}
