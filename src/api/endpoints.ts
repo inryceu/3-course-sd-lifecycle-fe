@@ -24,6 +24,8 @@ import type {
   ResolveJiraConflictRequest,
   User,
   Label,
+  JiraSyncLogPage,
+  JiraSyncStatus,
 } from './schema';
 
 type Schemas = components['schemas'];
@@ -157,6 +159,18 @@ export const jiraApi = {
 
   resolveConflict: (conflictId: string, resolution: ResolveJiraConflictRequest['resolution']) =>
     api.post<JiraConflict>(`/jira/conflicts/${conflictId}/resolve`, { resolution }),
+
+  syncLogs: (
+    boardId: string,
+    params?: { status?: JiraSyncStatus; limit?: number; cursor?: string }
+  ) => {
+    const query = new URLSearchParams();
+    query.set('boardId', boardId);
+    if (params?.status) query.set('status', params.status);
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.cursor) query.set('cursor', params.cursor);
+    return api.get<JiraSyncLogPage>(`/jira/sync-logs?${query.toString()}`);
+  },
 };
 
 export const labelsApi = {

@@ -5,6 +5,7 @@ import type { Board } from '../../api/schema';
 import { ConfirmButton } from '../../components/ConfirmButton';
 import { JiraImportPanel } from './JiraImportPanel';
 import { JiraConflictsPanel } from './JiraConflictsPanel';
+import { JiraSyncLogsPanel } from './JiraSyncLogsPanel';
 
 /** Remembers which board started the flow, so the callback page can link back to it. */
 export const JIRA_BOARD_KEY = 'jiraConnectBoardId';
@@ -29,6 +30,8 @@ function JiraBoardRow({ board }: { board: Board }) {
     onSettled: () =>
       void queryClient.invalidateQueries({ queryKey: ['jira-connection', board.id] }),
   });
+
+  const showReconnectWarning = status?.connected && status.requiresReconnect;
 
   return (
     <li className="card p-4" aria-label={`Jira connection of ${board.title}`}>
@@ -79,10 +82,31 @@ function JiraBoardRow({ board }: { board: Board }) {
           </span>
         )}
       </div>
+      {showReconnectWarning && (
+        <div role="alert" className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm font-medium text-amber-800">
+            Jira no longer accepts this connection
+          </p>
+          <p className="mt-1 text-sm text-amber-700">
+            Synchronisation is paused until Jira is reconnected. Linked cards and mappings are kept.
+          </p>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn-primary text-sm mt-2"
+              disabled={connect.isPending}
+              onClick={() => connect.mutate()}
+            >
+              Reconnect Jira
+            </button>
+          )}
+        </div>
+      )}
       {status?.connected && (
         <>
           <JiraImportPanel board={board} />
           {isAdmin && <JiraConflictsPanel board={board} />}
+          {isAdmin && <JiraSyncLogsPanel board={board} siteUrl={status.siteUrl} />}
         </>
       )}
     </li>
