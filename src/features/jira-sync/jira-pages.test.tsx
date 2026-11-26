@@ -7,13 +7,21 @@ import { JiraSyncPage, JIRA_BOARD_KEY } from './JiraSyncPage';
 import { JiraCallbackPage } from './JiraCallbackPage';
 
 const api = vi.hoisted(() => ({
-  boards: { list: vi.fn() },
-  jira: { startOAuth: vi.fn(), completeOAuth: vi.fn(), connection: vi.fn(), disconnect: vi.fn() },
+  boards: { list: vi.fn(), get: vi.fn() },
+  jira: {
+    startOAuth: vi.fn(),
+    completeOAuth: vi.fn(),
+    connection: vi.fn(),
+    disconnect: vi.fn(),
+    syncLogs: vi.fn(),
+    conflicts: vi.fn(),
+  },
 }));
 vi.mock('../../api/endpoints', () => ({ boardsApi: api.boards, jiraApi: api.jira }));
 
 beforeEach(() => {
   [...Object.values(api.boards), ...Object.values(api.jira)].forEach((fn) => fn.mockReset());
+  api.boards.get.mockResolvedValue({ id: 'b', columns: [] });
   sessionStorage.clear();
 });
 
@@ -50,6 +58,76 @@ describe('JiraSyncPage', () => {
     );
     expect(sessionStorage.getItem(JIRA_BOARD_KEY)).toBe('b1');
     vi.unstubAllGlobals();
+  });
+});
+
+describe('JiraSyncPage reconnect banner', () => {
+  const connected = (requiresReconnect: boolean, role: 'ADMIN' | 'MEMBER' = 'ADMIN') => {
+    api.boards.list.mockResolvedValue([
+      { id: 'b1', title: 'Mine', myRole: role, createdAt: '', updatedAt: '' },
+    ]);
+    api.boards.get.mockResolvedValue({ id: 'b1', columns: [] });
+    api.jira.connection.mockResolvedValue({
+      connected: true,
+      boardId: 'b1',
+      siteUrl: 'https://team.atlassian.net',
+      scopes: [],
+      requiresReconnect,
+    });
+    api.jira.syncLogs.mockResolvedValue({ items: [], nextCursor: null });
+    api.jira.conflicts.mockResolvedValue({ items: [], nextCursor: null });
+  };
+
+  it('tells the Admin the connection is dead and lets them reconnect without disconnecting', async () => {
+    connected(true);
+    api.jira.startOAuth.mockResolvedValue({ authorizeUrl: 'https://auth.atlassian.com/x' });
+    const assign = vi.fn();
+    vi.stubGlobal('location', { ...window.location, assign });
+
+    renderWithProviders(<JiraSyncPage />);
+
+    expect(await screen.findByText('Jira no longer accepts this connection')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Reconnect Jira' }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://auth.atlassian.com/x'));
+    expect(api.jira.startOAuth).toHaveBeenCalledWith('b1');
+    expect(api.jira.disconnect).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows a member the warning without a reconnect button', async () => {
+    connected(true, 'MEMBER');
+
+    renderWithProviders(<JiraSyncPage />);
+
+    expect(await screen.findByText('Jira no longer accepts this connection')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reconnect Jira' })).not.toBeInTheDocument();
+  });
+
+  it('shows no warning for a healthy connection', async () => {
+    connected(false);
+
+    renderWithProviders(<JiraSyncPage />);
+
+    await screen.findByText('https://team.atlassian.net');
+    expect(screen.queryByText('Jira no longer accepts this connection')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reconnect Jira' })).not.toBeInTheDocument();
+  });
+
+  it('shows no warning when Jira is not connected', async () => {
+    api.boards.list.mockResolvedValue([
+      { id: 'b1', title: 'Mine', myRole: 'ADMIN', createdAt: '', updatedAt: '' },
+    ]);
+    api.jira.connection.mockResolvedValue({
+      connected: false,
+      boardId: 'b1',
+      scopes: [],
+      requiresReconnect: false,
+    });
+
+    renderWithProviders(<JiraSyncPage />);
+
+    await screen.findByRole('button', { name: 'Connect Jira' });
+    expect(screen.queryByText('Jira no longer accepts this connection')).not.toBeInTheDocument();
   });
 });
 

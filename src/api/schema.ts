@@ -32,6 +32,5 @@ export type JiraConflictPage = Schemas['JiraConflictPage'];
 export type ResolveJiraConflictRequest = Schemas['ResolveJiraConflictRequest'];
 export type JiraSyncLog = Schemas['JiraSyncLog'];
 export type JiraSyncLogPage = Schemas['JiraSyncLogPage'];
-export type JiraSyncRetryResult = Schemas['JiraSyncRetryResult'];
 export type JiraSyncDirection = Schemas['JiraSyncDirection'];
 export type JiraSyncStatus = Schemas['JiraSyncStatus'];

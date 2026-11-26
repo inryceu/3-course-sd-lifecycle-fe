@@ -25,7 +25,6 @@ import type {
   User,
   Label,
   JiraSyncLogPage,
-  JiraSyncRetryResult,
   JiraSyncStatus,
 } from './schema';
 
@@ -161,7 +160,10 @@ export const jiraApi = {
   resolveConflict: (conflictId: string, resolution: ResolveJiraConflictRequest['resolution']) =>
     api.post<JiraConflict>(`/jira/conflicts/${conflictId}/resolve`, { resolution }),
 
-  syncLogs: (boardId: string, params?: { status?: JiraSyncStatus; limit?: number; cursor?: string }) => {
+  syncLogs: (
+    boardId: string,
+    params?: { status?: JiraSyncStatus; limit?: number; cursor?: string }
+  ) => {
     const query = new URLSearchParams();
     query.set('boardId', boardId);
     if (params?.status) query.set('status', params.status);
@@ -169,9 +171,6 @@ export const jiraApi = {
     if (params?.cursor) query.set('cursor', params.cursor);
     return api.get<JiraSyncLogPage>(`/jira/sync-logs?${query.toString()}`);
   },
-
-  retrySyncLog: (logId: string) =>
-    api.post<JiraSyncRetryResult>(`/jira/sync-logs/${encodeURIComponent(logId)}/retry`),
 };
 
 export const labelsApi = {

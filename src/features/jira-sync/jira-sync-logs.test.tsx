@@ -1,218 +1,239 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
-import type { JiraSyncLog } from '../../api/schema';
+import { ApiError } from '../../api/client';
+import type { Board, JiraSyncLog } from '../../api/schema';
+import { renderWithProviders } from '../../test-utils';
 import { JiraSyncLogsPanel } from './JiraSyncLogsPanel';
 
 const api = vi.hoisted(() => ({
-  jira: { syncLogs: vi.fn(), retrySyncLog: vi.fn() },
+  boards: { get: vi.fn() },
+  jira: { syncLogs: vi.fn() },
 }));
+vi.mock('../../api/endpoints', () => ({ boardsApi: api.boards, jiraApi: api.jira }));
 
-vi.mock('../../api/endpoints', () => ({
-  jiraApi: {
-    syncLogs: api.jira.syncLogs,
-    retrySyncLog: api.jira.retrySyncLog,
-  },
-}));
+const board: Board = {
+  id: 'board-1',
+  title: 'Test Board',
+  myRole: 'ADMIN',
+  createdAt: '',
+  updatedAt: '',
+};
 
-const mockLogs: JiraSyncLog[] = [
-  {
-    id: 'log-1',
-    boardId: 'board-1',
-    direction: 'TO_JIRA',
-    status: 'FAILED',
-    payload: {
-      issueKey: 'KAN-1',
-      cardId: 'card-1',
-      fromColumnId: 'col-1',
-      toColumnId: 'col-2',
-      outcome: 'transitioned',
-    },
-    errorMessage: 'Rate limited',
-    mappingId: 'mapping-1',
-    createdAt: '2026-01-15T10:00:00.000Z',
-  },
-  {
-    id: 'log-2',
-    boardId: 'board-1',
-    direction: 'TO_JIRA',
-    status: 'SUCCESS',
-    payload: {
-      issueKey: 'KAN-2',
-      cardId: 'card-2',
-      outcome: 'no-op',
-    },
-    errorMessage: null,
-    mappingId: 'mapping-2',
-    createdAt: '2026-01-15T09:00:00.000Z',
-  },
-  {
-    id: 'log-3',
-    boardId: 'board-1',
-    direction: 'FROM_JIRA',
-    status: 'CONFLICT',
-    payload: {
-      issueKey: 'KAN-3',
-      cardId: 'card-3',
-    },
-    errorMessage: null,
-    mappingId: 'mapping-3',
-    createdAt: '2026-01-15T08:00:00.000Z',
-  },
-  {
-    id: 'log-4',
-    boardId: 'board-1',
-    direction: 'TO_JIRA',
-    status: 'FAILED',
-    payload: {
-      issueKey: 'KAN-4',
-      cardId: 'card-4',
-      outcome: 'unknown',
-    },
-    errorMessage: 'Timeout',
-    mappingId: 'mapping-4',
-    createdAt: '2026-01-15T07:00:00.000Z',
-  },
-];
+const log = (overrides: Partial<JiraSyncLog> & Pick<JiraSyncLog, 'id'>): JiraSyncLog => ({
+  boardId: 'board-1',
+  direction: 'TO_JIRA',
+  status: 'SUCCESS',
+  payload: {},
+  errorMessage: null,
+  mappingId: 'm1',
+  createdAt: '2026-01-15T10:00:00.000Z',
+  ...overrides,
+});
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
+const FAILED_MOVE = log({
+  id: 'log-1',
+  status: 'FAILED',
+  payload: { issueKey: 'KAN-1', cardId: 'card-1', fromColumnId: 'col-a', toColumnId: 'col-b' },
+  errorMessage: 'Rate limited',
+});
+const SUCCESS_MOVE = log({ id: 'log-2', payload: { issueKey: 'KAN-2', toColumnId: 'col-b' } });
+const CONFLICT = log({
+  id: 'log-3',
+  direction: 'FROM_JIRA',
+  status: 'CONFLICT',
+  payload: { issueKey: 'KAN-3' },
+});
+const FAILED_COMMENT = log({
+  id: 'log-4',
+  status: 'FAILED',
+  payload: { issueKey: 'KAN-4', commentId: 'com-1', cardId: 'card-4' },
+  errorMessage: 'Timeout',
+});
+const ALL_LOGS = [FAILED_MOVE, SUCCESS_MOVE, CONFLICT, FAILED_COMMENT];
+
+const renderPanel = (siteUrl: string | null = 'https://team.atlassian.net/') =>
+  renderWithProviders(<JiraSyncLogsPanel board={board} siteUrl={siteUrl} />);
+
+beforeEach(() => {
+  api.boards.get.mockReset().mockResolvedValue({
+    ...board,
+    columns: [
+      { id: 'col-a', title: 'To Do', cards: [] },
+      { id: 'col-b', title: 'Done', cards: [] },
+    ],
   });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/']}>{children}</MemoryRouter>
-    </QueryClientProvider>
-  );
-}
-
-function renderPanel(options: { logs?: JiraSyncLog[] } = {}) {
-  const { logs = mockLogs } = options;
-
-  api.jira.syncLogs.mockResolvedValue({ items: logs, nextCursor: null });
-  api.jira.retrySyncLog.mockResolvedValue({ status: 'SUCCESS', reason: null });
-
-  return render(
-    <JiraSyncLogsPanel board={{ id: 'board-1', title: 'Test Board' } as any} />,
-    { wrapper: createWrapper() }
-  );
-}
+  // Honours the server-side filter the way the backend does.
+  api.jira.syncLogs
+    .mockReset()
+    .mockImplementation((_boardId: string, params?: { status?: string }) =>
+      Promise.resolve({
+        items: ALL_LOGS.filter((l) => !params?.status || l.status === params.status),
+        nextCursor: null,
+      })
+    );
+});
 
 describe('JiraSyncLogsPanel', () => {
-  beforeEach(() => {
-    api.jira.syncLogs.mockClear();
-    api.jira.retrySyncLog.mockClear();
-  });
-
-  it('renders status filter tabs', async () => {
+  it('lists logs with status, direction, error and column titles instead of ids', async () => {
     renderPanel();
 
-    await screen.findByRole('button', { name: 'ALL' });
-    expect(screen.getByRole('button', { name: 'FAILED' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'CONFLICT' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'SUCCESS' })).toBeInTheDocument();
-  });
-
-  it('shows loading state', () => {
-    api.jira.syncLogs.mockImplementation(() => new Promise(() => {})); // Never resolves
-
-    render(
-      <JiraSyncLogsPanel board={{ id: 'board-1' } as any} />,
-      { wrapper: createWrapper() }
-    );
-
-    expect(screen.getByText('Loading sync logs...')).toBeInTheDocument();
-  });
-
-it('displays sync logs with status badges', async () => {
-    renderPanel();
-
-    await screen.findByText('log-1'.slice(0, 8));
-    await screen.findByText('log-2'.slice(0, 8));
-    await screen.findByText('log-3'.slice(0, 8));
-
-    // Check status badges - there are multiple FAILED logs + filter tabs
-    const failedBadges = await screen.findAllByText('FAILED');
-    expect(failedBadges.length).toBe(3);
-    const successBadges = await screen.findAllByText('SUCCESS');
-    expect(successBadges.length).toBe(2);
-    const conflictBadges = await screen.findAllByText('CONFLICT');
-    expect(conflictBadges.length).toBe(2);
-  });
-
-  it('displays direction badges', async () => {
-    renderPanel();
-
-    const toJiraBadges = await screen.findAllByText('→ Jira');
-    const fromJiraBadges = await screen.findAllByText('← Jira');
-    expect(toJiraBadges.length).toBe(3);
-    expect(fromJiraBadges.length).toBe(1);
-  });
-
-  it('filters logs by status when clicking tabs', async () => {
-    renderPanel();
-
-    await screen.findByRole('button', { name: 'FAILED' });
-    userEvent.click(screen.getByRole('button', { name: 'FAILED' }));
-
-    // Should show only FAILED logs (log-1 and log-4)
-    await screen.findByText('KAN-1');
-    await screen.findByText('KAN-4');
-    expect(screen.queryByText('KAN-2')).not.toBeInTheDocument();
-    expect(screen.queryByText('KAN-3')).not.toBeInTheDocument();
-
-    // Click ALL filter
-    userEvent.click(screen.getByRole('button', { name: 'ALL' }));
-
-    await screen.findByText('KAN-1');
-    await screen.findByText('KAN-2');
-    await screen.findByText('KAN-3');
-    await screen.findByText('KAN-4');
-  });
-
-  it('shows error message for failed logs', async () => {
-    renderPanel();
-
-    await screen.findByText('Rate limited');
-    await screen.findByText('Timeout');
-  });
-
-  it('shows Retry button only for retryable failed logs', async () => {
-    renderPanel();
-
-    await screen.findByRole('button', { name: /Retry/i });
-    const retryButtons = screen.getAllByRole('button', { name: /Retry/i });
-    expect(retryButtons.length).toBe(1); // Only log-1 should have Retry button
-  });
-
-  it('does not show Retry button for non-retryable logs', async () => {
-    renderPanel();
-
-    await screen.findByRole('button', { name: /Retry/i });
-    const retryButtons = screen.getAllByRole('button', { name: /Retry/i });
-    expect(retryButtons.length).toBe(1);
-  });
-
-  it('calls retry API when Retry button is clicked', async () => {
-    renderPanel();
-
-    const retryButton = await screen.findByRole('button', { name: 'Retry' });
-    userEvent.click(retryButton);
-
-    await waitFor(() => {
-      expect(api.jira.retrySyncLog).toHaveBeenCalledWith('log-1');
+    expect(await screen.findByText('Rate limited')).toBeInTheDocument();
+    expect(screen.getByText('Timeout')).toBeInTheDocument();
+    expect(await screen.findByText('from To Do → to Done')).toBeInTheDocument();
+    expect(screen.getAllByText('→ Jira')).toHaveLength(3);
+    expect(screen.getAllByText('← Jira')).toHaveLength(1);
+    expect(screen.getByText('Comment sync')).toBeInTheDocument();
+    expect(screen.queryByText(/log-1|card-1|col-a/)).not.toBeInTheDocument();
+    expect(api.jira.syncLogs).toHaveBeenCalledWith('board-1', {
+      status: undefined,
+      cursor: undefined,
     });
   });
 
-  it('shows issue key and card id for logs', async () => {
+  it('links the issue key to the Jira site and has no dead "#" links', async () => {
     renderPanel();
 
-    await screen.findByText('KAN-1');
-    await screen.findByText('Card: card-1');
+    const link = await screen.findByRole('link', { name: 'KAN-1' });
+    expect(link).toHaveAttribute('href', 'https://team.atlassian.net/browse/KAN-1');
+    screen.getAllByRole('link').forEach((a) => expect(a.getAttribute('href')).not.toBe('#'));
+  });
+
+  it('shows the issue key as plain text when the site is unknown', async () => {
+    renderPanel(null);
+
+    expect(await screen.findByText('KAN-1')).toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('names a column that no longer exists', async () => {
+    api.boards.get.mockResolvedValue({ ...board, columns: [] });
+    renderPanel();
+
+    expect(
+      await screen.findByText('from a deleted column → to a deleted column')
+    ).toBeInTheDocument();
+  });
+
+  it('offers no Retry action: status moves are retried by the outbox', async () => {
+    renderPanel();
+
+    await screen.findByText('Rate limited');
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it('filters on the server: the status is a query argument and a new query runs', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByText('KAN-2');
+
+    await user.click(screen.getByRole('button', { name: 'FAILED' }));
+
+    await screen.findByText('KAN-4');
+    expect(api.jira.syncLogs).toHaveBeenCalledTimes(2);
+    expect(api.jira.syncLogs).toHaveBeenLastCalledWith('board-1', {
+      status: 'FAILED',
+      cursor: undefined,
+    });
+    expect(screen.queryByText('KAN-2')).not.toBeInTheDocument();
+    expect(screen.queryByText('KAN-3')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'ALL' }));
+    expect(await screen.findByText('KAN-2')).toBeInTheDocument();
+  });
+
+  it('shows failed rows that sit beyond the first unfiltered page', async () => {
+    const user = userEvent.setup();
+    api.jira.syncLogs.mockImplementation((_id: string, params?: { status?: string }) =>
+      Promise.resolve(
+        params?.status === 'FAILED'
+          ? { items: [FAILED_COMMENT], nextCursor: null }
+          : { items: [SUCCESS_MOVE], nextCursor: 'cursor-unfiltered' }
+      )
+    );
+    renderPanel();
+    await screen.findByText('KAN-2');
+
+    await user.click(screen.getByRole('button', { name: 'FAILED' }));
+
+    expect(await screen.findByText('KAN-4')).toBeInTheDocument();
+    expect(screen.queryByText('KAN-2')).not.toBeInTheDocument();
+    // the unfiltered cursor is never sent with the filtered query
+    expect(api.jira.syncLogs).toHaveBeenLastCalledWith('board-1', {
+      status: 'FAILED',
+      cursor: undefined,
+    });
+  });
+
+  it('marks the active filter with aria-pressed', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findByText('KAN-2');
+
+    expect(screen.getByRole('button', { name: 'ALL' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'CONFLICT' }));
+
+    expect(screen.getByRole('button', { name: 'CONFLICT' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(screen.getByRole('button', { name: 'ALL' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('says so when a filter matches nothing', async () => {
+    const user = userEvent.setup();
+    api.jira.syncLogs.mockResolvedValue({ items: [], nextCursor: null });
+    renderPanel();
+
+    expect(await screen.findByText('No sync logs.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'CONFLICT' }));
+    expect(await screen.findByText('No sync logs with status CONFLICT.')).toBeInTheDocument();
+  });
+
+  it('loads the next page with the cursor and hides Load more at the end', async () => {
+    const user = userEvent.setup();
+    api.jira.syncLogs.mockImplementation((_id: string, params?: { cursor?: string }) =>
+      Promise.resolve(
+        params?.cursor
+          ? { items: [CONFLICT], nextCursor: null }
+          : { items: [SUCCESS_MOVE], nextCursor: 'cursor-1' }
+      )
+    );
+    renderPanel();
+    await screen.findByText('KAN-2');
+
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+
+    expect(await screen.findByText('KAN-3')).toBeInTheDocument();
+    expect(screen.getByText('KAN-2')).toBeInTheDocument();
+    expect(api.jira.syncLogs).toHaveBeenLastCalledWith('board-1', {
+      status: undefined,
+      cursor: 'cursor-1',
+    });
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+  });
+
+  it('shows an alert when the logs cannot be loaded, and keeps the filters usable', async () => {
+    api.jira.syncLogs.mockRejectedValue(new ApiError(500, ['boom']));
+    renderPanel();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load sync logs');
+    expect(screen.getByRole('button', { name: 'FAILED' })).toBeEnabled();
+  });
+
+  it('shows an alert when the next page fails and keeps the loaded rows', async () => {
+    const user = userEvent.setup();
+    api.jira.syncLogs.mockImplementation((_id: string, params?: { cursor?: string }) =>
+      params?.cursor
+        ? Promise.reject(new ApiError(403, ['Only board admins can view sync logs']))
+        : Promise.resolve({ items: [SUCCESS_MOVE], nextCursor: 'cursor-1' })
+    );
+    renderPanel();
+    await screen.findByText('KAN-2');
+
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Only board admins');
+    expect(screen.getByText('KAN-2')).toBeInTheDocument();
   });
 });

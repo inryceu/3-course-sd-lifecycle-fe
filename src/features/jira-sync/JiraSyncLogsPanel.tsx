@@ -1,50 +1,35 @@
 import { useState } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { jiraApi } from '../../api/endpoints';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { boardsApi, jiraApi } from '../../api/endpoints';
 import type { Board, JiraSyncLog, JiraSyncStatus } from '../../api/schema';
 
-type StatusFilter = 'ALL' | 'FAILED' | 'CONFLICT' | 'SUCCESS';
+type StatusFilter = 'ALL' | JiraSyncStatus;
 
-function getStatusColor(status: JiraSyncStatus): string {
-  switch (status) {
-    case 'SUCCESS':
-      return 'bg-green-100 text-green-800';
-    case 'FAILED':
-      return 'bg-red-100 text-red-800';
-    case 'CONFLICT':
-      return 'bg-yellow-100 text-yellow-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
-}
+const FILTERS: StatusFilter[] = ['ALL', 'FAILED', 'CONFLICT', 'SUCCESS'];
 
-function getDirectionBadge(direction: string): string {
-  if (direction === 'TO_JIRA') return 'bg-blue-100 text-blue-800';
-  if (direction === 'FROM_JIRA') return 'bg-purple-100 text-purple-800';
-  return 'bg-gray-100 text-gray-800';
-}
+const STATUS_BADGE: Record<JiraSyncStatus, string> = {
+  SUCCESS: 'bg-green-100 text-green-800',
+  FAILED: 'bg-red-100 text-red-800',
+  CONFLICT: 'bg-yellow-100 text-yellow-800',
+};
 
-function isRetryable(log: JiraSyncLog): boolean {
-  if (log.status !== 'FAILED') return false;
-  const outcome = log.payload?.outcome as string | undefined;
-  if (outcome === 'unknown') return false;
-  if (log.direction === 'TO_JIRA') {
-    const hasTransitionData = !!log.payload?.fromColumnId && !!log.payload?.toColumnId;
-    const hasCommentData = !!log.payload?.commentId;
-    return hasTransitionData || hasCommentData;
-  }
-  return false;
-}
+const ROW_STYLE: Record<JiraSyncStatus, string> = {
+  SUCCESS: 'bg-green-50 border-green-200',
+  FAILED: 'bg-red-50 border-red-200',
+  CONFLICT: 'bg-yellow-50 border-yellow-200',
+};
 
-export function JiraSyncLogsPanel({ board }: { board: Board }) {
-  const queryClient = useQueryClient();
-  const queryKey = ['jira-sync-logs', board.id];
+const text = (value: unknown): string | undefined =>
+  typeof value === 'string' && value !== '' ? value : undefined;
 
+/** Read-only list of the board's Jira sync log (Admin). Status moves are retried by the outbox. */
+export function JiraSyncLogsPanel({ board, siteUrl }: { board: Board; siteUrl?: string | null }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
 
   const { data, isLoading, isError, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useInfiniteQuery({
-      queryKey,
+      // The filter is part of the key: changing it refetches from the server with a fresh cursor.
+      queryKey: ['jira-sync-logs', board.id, statusFilter],
       queryFn: ({ pageParam }) =>
         jiraApi.syncLogs(board.id, {
           status: statusFilter === 'ALL' ? undefined : statusFilter,
@@ -54,36 +39,73 @@ export function JiraSyncLogsPanel({ board }: { board: Board }) {
       getNextPageParam: (last) => last.nextCursor ?? undefined,
     });
 
-  const retry = useMutation({
-    mutationFn: (logId: string) => jiraApi.retrySyncLog(logId),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey });
-      void queryClient.invalidateQueries({ queryKey: ['board', board.id] });
-    },
+  // Same key as the board page, so the columns are usually cached already.
+  const { data: boardDetail } = useQuery({
+    queryKey: ['board', board.id],
+    queryFn: () => boardsApi.get(board.id),
   });
+  const columnTitle = (id: string | undefined) =>
+    id ? (boardDetail?.columns.find((c) => c.id === id)?.title ?? 'a deleted column') : undefined;
 
-  const allLogs = (data?.pages ?? []).flatMap((page) => page.items);
-  const filteredLogs = allLogs.filter((log) => {
-    if (statusFilter === 'ALL') return true;
-    return log.status === statusFilter;
-  });
+  const logs = (data?.pages ?? []).flatMap((page) => page.items);
+  const browseBase = siteUrl?.replace(/\/+$/, '');
 
-  if (isLoading) return <p className="text-sm text-gray-500 mt-4">Loading sync logs...</p>;
-  if (isError) {
+  const row = (log: JiraSyncLog) => {
+    const payload = log.payload ?? {};
+    const issueKey = text(payload.issueKey);
+    const from = columnTitle(text(payload.fromColumnId));
+    const to = columnTitle(text(payload.toColumnId));
     return (
-      <p role="alert" className="text-sm text-red-600 mt-4">
-        Could not load sync logs: {error.message}
-      </p>
+      <li key={log.id} className={`p-3 rounded-lg border ${ROW_STYLE[log.status]}`}>
+        <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2">
+            <span className={`px-1.5 py-0.5 text-[10px] rounded ${STATUS_BADGE[log.status]}`}>
+              {log.status}
+            </span>
+            <span className="text-xs text-gray-700">
+              {log.direction === 'TO_JIRA' ? '→ Jira' : '← Jira'}
+            </span>
+            {issueKey &&
+              (browseBase ? (
+                <a
+                  href={`${browseBase}/browse/${issueKey}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-xs text-primary-600 underline"
+                >
+                  {issueKey}
+                </a>
+              ) : (
+                <span className="font-mono text-xs text-gray-700">{issueKey}</span>
+              ))}
+          </div>
+          <span className="text-xs text-gray-500 whitespace-nowrap">
+            {new Date(log.createdAt).toLocaleString()}
+          </span>
+        </div>
+        {text(payload.commentId) && <p className="text-xs text-gray-600">Comment sync</p>}
+        {(from || to) && (
+          <p className="text-xs text-gray-600">
+            {from && `from ${from}`}
+            {from && to && ' → '}
+            {to && `to ${to}`}
+          </p>
+        )}
+        {log.errorMessage && (
+          <p className="text-xs text-red-700 mt-1 font-mono">{log.errorMessage}</p>
+        )}
+      </li>
     );
-  }
+  };
 
   return (
     <div className="mt-4 border-t pt-4">
-      <div className="flex flex-wrap gap-2 mb-3">
-        {(['ALL', 'FAILED', 'CONFLICT', 'SUCCESS'] as StatusFilter[]).map((filter) => (
+      <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Filter by status">
+        {FILTERS.map((filter) => (
           <button
             key={filter}
             type="button"
+            aria-pressed={statusFilter === filter}
             className={`btn-xs ${
               statusFilter === filter
                 ? 'bg-primary-600 text-white'
@@ -96,100 +118,27 @@ export function JiraSyncLogsPanel({ board }: { board: Board }) {
         ))}
       </div>
 
-      {retry.isError && (
-        <p role="alert" className="text-sm text-red-600 mb-2">
-          Could not retry sync log: {retry.error.message}
+      {isLoading && <p className="text-sm text-gray-500">Loading sync logs...</p>}
+      {isError && (
+        <p role="alert" className="text-sm text-red-600">
+          Could not load sync logs: {error.message}
         </p>
       )}
-
-      {filteredLogs.length === 0 && (
+      {!isLoading && !isError && logs.length === 0 && (
         <p className="text-sm text-gray-500">
-          No sync logs {statusFilter !== 'ALL' ? `with status ${statusFilter}` : ''}.
+          No sync logs{statusFilter !== 'ALL' ? ` with status ${statusFilter}` : ''}.
         </p>
       )}
 
-      <ul className="space-y-2 max-h-96 overflow-y-auto scrollbar-thin pr-2">
-        {filteredLogs.map((log) => {
-          const busy = retry.isPending && (retry.variables as string | undefined) === log.id;
-          const payload = log.payload ?? {};
-          const issueKey = payload.issueKey as string | undefined;
-          const cardId = payload.cardId as string | undefined;
-          const fromColumnId = payload.fromColumnId as string | undefined;
-          const toColumnId = payload.toColumnId as string | undefined;
-          const commentId = payload.commentId as string | undefined;
-          const text = payload.text as string | undefined;
-          const errorMessage = log.errorMessage;
-
-          return (
-            <li
-              key={log.id}
-              className={`p-3 rounded-lg border ${
-                log.status === 'FAILED'
-                  ? 'bg-red-50 border-red-200'
-                  : log.status === 'CONFLICT'
-                  ? 'bg-yellow-50 border-yellow-200'
-                  : 'bg-green-50 border-green-200'
-              }`}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-gray-600">{log.id.slice(0, 8)}</span>
-                  <span className={`px-1.5 py-0.5 text-[10px] rounded ${getStatusColor(log.status)}`}>
-                    {log.status}
-                  </span>
-                  <span className={`px-1.5 py-0.5 text-[10px] rounded ${getDirectionBadge(log.direction)}`}>
-                    {log.direction === 'TO_JIRA' ? '→ Jira' : '← Jira'}
-                  </span>
-                </div>
-                <span className="text-xs text-gray-500 whitespace-nowrap">
-                  {new Date(log.createdAt).toLocaleString()}
-                </span>
-              </div>
-
-              {issueKey && (
-                <p className="font-mono text-xs text-blue-600 mb-1">
-                  Issue: <a href="#" className="underline">{issueKey}</a>
-                </p>
-              )}
-
-              {cardId && (
-                <p className="text-xs text-gray-600 mb-1">Card: {cardId.slice(0, 8)}</p>
-              )}
-
-              {(fromColumnId || toColumnId) && (
-                <p className="text-xs text-gray-600 mb-1">
-                  {fromColumnId ? `from ${fromColumnId.slice(0, 8)}` : ''}
-                  {fromColumnId && toColumnId ? ' → ' : ''}
-                  {toColumnId ? `to ${toColumnId.slice(0, 8)}` : ''}
-                </p>
-              )}
-
-              {commentId && text && (
-                <p className="text-xs text-gray-600 mb-1 italic">
-                  Comment: {text.length > 50 ? text.slice(0, 50) + '...' : text}
-                </p>
-              )}
-
-              {errorMessage && (
-                <p className="text-xs text-red-600 mb-1 font-mono">{errorMessage}</p>
-              )}
-
-              {isRetryable(log) && (
-                <div className="mt-2 pt-2 border-t border-current/20">
-                  <button
-                    type="button"
-                    className="btn-xs bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
-                    disabled={busy}
-                    onClick={() => retry.mutate(log.id)}
-                  >
-                    {busy ? 'Retrying...' : 'Retry'}
-                  </button>
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {logs.length > 0 && (
+        <ul
+          className="space-y-2 max-h-96 overflow-y-auto scrollbar-thin pr-2"
+          aria-label="Sync logs"
+          tabIndex={0}
+        >
+          {logs.map(row)}
+        </ul>
+      )}
 
       {hasNextPage && (
         <button

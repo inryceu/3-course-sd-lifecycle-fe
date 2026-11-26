@@ -83,25 +83,30 @@ function JiraBoardRow({ board }: { board: Board }) {
         )}
       </div>
       {showReconnectWarning && (
-        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <div className="flex items-center gap-2 text-amber-800">
-            <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            <p className="text-sm font-medium">
-              Jira connection needs to be reconnected
-            </p>
-          </div>
-          <p className="mt-1 text-sm text-amber-700">
-            The OAuth token has expired. Please disconnect and reconnect Jira to restore sync functionality.
+        <div role="alert" className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm font-medium text-amber-800">
+            Jira no longer accepts this connection
           </p>
+          <p className="mt-1 text-sm text-amber-700">
+            Synchronisation is paused until Jira is reconnected. Linked cards and mappings are kept.
+          </p>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn-primary text-sm mt-2"
+              disabled={connect.isPending}
+              onClick={() => connect.mutate()}
+            >
+              Reconnect Jira
+            </button>
+          )}
         </div>
       )}
       {status?.connected && (
         <>
           <JiraImportPanel board={board} />
           {isAdmin && <JiraConflictsPanel board={board} />}
-          {isAdmin && <JiraSyncLogsPanel board={board} />}
+          {isAdmin && <JiraSyncLogsPanel board={board} siteUrl={status.siteUrl} />}
         </>
       )}
     </li>
