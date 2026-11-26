@@ -14,7 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '20'
   PNPM_VERSION: '9.0.0'
   FE_DIR: 3-course-sd-lifecycle-fe
   BE_DIR: 3-course-sd-lifecycle-be
@@ -66,7 +65,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: ${{ env.FE_DIR }}/.nvmrc
           cache: 'pnpm'
           cache-dependency-path: ${{ env.FE_DIR }}/pnpm-lock.yaml
 
