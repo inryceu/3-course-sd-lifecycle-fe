@@ -41,14 +41,17 @@ function errorBody(status: number, message: string) {
   };
 }
 
+let listed: Member = BOB;
+
 beforeEach(() => {
+  listed = BOB;
   vi.stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
       if (url.endsWith('/boards/b1/members') && method === 'GET') {
-        return respond(200, [ALICE, BOB]);
+        return respond(200, [ALICE, listed]);
       }
       if (url.endsWith('/boards/b1/members') && method === 'POST') {
         const { email } = JSON.parse(String(init?.body)) as { email: string };
@@ -111,7 +114,7 @@ describe('Members panel errors', () => {
     expect(memberRows()).toHaveLength(2);
   });
 
-  it('shows the backend message when the role no longer allows the action (403)', async () => {
+  it('shows the backend message on 403', async () => {
     renderPanel();
     expect(await screen.findByText('bob')).toBeInTheDocument();
 
@@ -120,7 +123,9 @@ describe('Members panel errors', () => {
     expect(await screen.findByText('Only a board admin can do this')).toBeInTheDocument();
   });
 
-  it('keeps the role and shows the backend message when the last Admin demotes themselves', async () => {
+  it('keeps the role and shows the backend message when the server refuses the demotion (409)', async () => {
+    // another Admin is listed, so the UI guard is off; the server still refuses (e.g. a race)
+    listed = { ...BOB, role: 'ADMIN' };
     renderPanel();
     const select = await screen.findByLabelText('Role of alice');
     expect(select).toHaveValue('ADMIN');

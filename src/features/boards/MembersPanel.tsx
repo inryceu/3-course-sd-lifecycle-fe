@@ -16,8 +16,16 @@ export function MembersPanel({ boardId, isAdmin }: { boardId: string; isAdmin: b
   const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<InviteRole>('MEMBER');
-  const { data: members, isLoading } = useMembers(boardId);
+  const { data: members, isLoading, isError } = useMembers(boardId);
   const refresh = () => void queryClient.invalidateQueries({ queryKey: membersKey(boardId) });
+  // `isAdmin` comes from the cached board (myRole); refetch it so a changed role, or a 403 from a
+  // stale one, takes the Admin controls away at once.
+  const refreshBoard = () => void queryClient.invalidateQueries({ queryKey: ['board', boardId] });
+  const soleAdminId =
+    members?.filter((m) => m.role === 'ADMIN').length === 1
+      ? members.find((m) => m.role === 'ADMIN')?.userId
+      : undefined;
+  const soleAdminReason = 'Cannot change or remove the only Admin of the board';
 
   // Errors (unknown e-mail, last Admin, ...) are shown by the API client's toast.
   const invite = useMutation({
@@ -26,11 +34,15 @@ export function MembersPanel({ boardId, isAdmin }: { boardId: string; isAdmin: b
       setEmail('');
       refresh();
     },
+    onError: refreshBoard,
   });
   const changeRole = useMutation({
     mutationFn: ({ userId, newRole }: { userId: string; newRole: BoardRole }) =>
       membersApi.changeRole(boardId, userId, newRole),
-    onSettled: refresh,
+    onSettled: () => {
+      refresh();
+      refreshBoard();
+    },
   });
   const remove = useMutation({
     mutationFn: (userId: string) => membersApi.remove(boardId, userId),
@@ -45,10 +57,20 @@ export function MembersPanel({ boardId, isAdmin }: { boardId: string; isAdmin: b
   return (
     <section aria-label="Board members" className="card p-4 mb-4">
       <h2 className="font-semibold mb-2">Members</h2>
-      {isLoading && <p className="text-sm text-gray-500">Loading members...</p>}
+      {isLoading && <p role="status" className="text-sm text-gray-500">
+          Loading members...
+        </p>}
+      {isError && (
+        <p role="alert" className="text-sm text-red-600">
+          Could not load members.{' '}
+          <button type="button" className="underline" onClick={refresh}>
+            Retry
+          </button>
+        </p>
+      )}
       <ul className="divide-y divide-gray-100">
         {members?.map((member: Member) => (
-          <li key={member.userId} className="flex items-center justify-between gap-2 py-2 text-sm">
+          <li key={member.userId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
             <span>
               <span className="font-medium">{member.displayName}</span>{' '}
               <span className="text-gray-500">{member.email}</span>
@@ -60,6 +82,8 @@ export function MembersPanel({ boardId, isAdmin }: { boardId: string; isAdmin: b
                   aria-label={`Role of ${member.displayName}`}
                   className="input py-1 text-sm w-32"
                   value={member.role}
+                  disabled={member.userId === soleAdminId}
+                  title={member.userId === soleAdminId ? soleAdminReason : undefined}
                   onChange={(e) =>
                     changeRole.mutate({
                       userId: member.userId,
@@ -75,6 +99,9 @@ export function MembersPanel({ boardId, isAdmin }: { boardId: string; isAdmin: b
                 </select>
                 <ConfirmButton
                   label="Remove"
+                  ariaLabel={`Remove ${member.displayName}`}
+                  disabled={member.userId === soleAdminId}
+                  title={member.userId === soleAdminId ? soleAdminReason : undefined}
                   className="btn-secondary text-xs px-2 py-1"
                   onConfirm={() => remove.mutate(member.userId)}
                 />
@@ -85,7 +112,7 @@ export function MembersPanel({ boardId, isAdmin }: { boardId: string; isAdmin: b
           </li>
         ))}
       </ul>
-      {!isLoading && members?.length === 0 && (
+      {!isLoading && !isError && members?.length === 0 && (
         <p className="text-sm text-gray-500">No members.</p>
       )}
       {isAdmin && (
