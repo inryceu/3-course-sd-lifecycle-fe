@@ -36,7 +36,7 @@ src/
 | Area | What it covers |
 | --- | --- |
 | Boards & columns | Create/edit boards and columns, drag-and-drop cards, board members and roles |
-| Cards | Create/edit cards, deadline, assignee; labels and comments are planned (KAN-42) |
+| Cards | Create/edit cards, deadline, assignee; labels, comments and deadline badges |
 | Jira connection | OAuth 2.0 flow, connect/disconnect a Jira site, import open issues, status → column mapping |
 | Realtime | Live board updates via WebSocket |
 | Auth | Login/registration, role-based UI (Admin / Member / Viewer) |
@@ -97,24 +97,10 @@ cp .env.example .env.local
 pnpm dev
 # Vite at http://localhost:5173
 # Proxies /api and /socket.io to http://localhost:3000 (configured in vite.config.ts)
+# Needs a backend on :3000: `pnpm start:dev` in the backend repo (see its README), or use the full stack below
 ```
 
-#### 2. Integrated dev stack (this repo's `docker-compose.yml`)
-
-```bash
-docker compose up --build
-```
-
-| Service | URL | Notes |
-|---------|-----|-------|
-| Frontend (Vite) | http://localhost:5173 | HMR enabled |
-| Backend (NestJS dev) | http://localhost:3000 | `pnpm start:dev` inside container |
-| Backend WebSocket | http://localhost:3001 | Socket.IO on separate port (dev only) |
-| Postgres | localhost:5432 | `postgres`/`postgres`/`boardsync_dev` |
-
-> Uses `../3-course-sd-lifecycle-be/.env.dev` for backend env. Network `boardsync-dev-network` is `external: true` — create once: `docker network create boardsync-dev-network`.
-
-#### 3. Production-like full stack (backend repo's `docker-compose.full.yml`)
+#### 2. Full stack (backend repo's `docker-compose.full.yml`)
 
 Both repos checked out side-by-side (`../3-course-sd-lifecycle-be` and `../3-course-sd-lifecycle-fe`):
 
@@ -134,19 +120,29 @@ docker compose --env-file .env.full -f docker-compose.full.yml up --build
 
 > Backend runs production image with `NODE_ENV=development` (HTTPS redirect disabled for local OAuth callbacks; see T-39). Set `FRONTEND_CONTEXT` in `.env.full` if frontend is not at `../3-course-sd-lifecycle-fe`.
 
-#### 4. Production stack (this repo's `docker-compose.prod.yml`)
+**Making "Connect Jira" work.** The placeholder values in `.env.full.example` are enough to start the stack, but connecting Jira needs a real Atlassian OAuth 2.0 (3LO) app: put its `JIRA_CLIENT_ID` and `JIRA_CLIENT_SECRET` into `.env.full`, and register `http://localhost:<WEB_PORT>/jira/callback` as the app's callback URL (it must equal the derived `JIRA_REDIRECT_URI`). Without it the first user-guide step ends in an OAuth error. The app, scopes and who may authorise it are described in the backend's [`docs/jira-sandbox.md`](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/docs/jira-sandbox.md).
+
+#### 3. Production-like stack with TLS (backend repo's `docker-compose.prod.yml`)
+
+Run from `../3-course-sd-lifecycle-be`. The profile starts postgres, the backend and an nginx that terminates TLS (1.2 and 1.3 only), redirects HTTP to HTTPS and proxies REST and Socket.IO (`wss://`). Only nginx publishes ports; the backend applies migrations before it starts listening.
 
 ```bash
-docker compose -f docker-compose.prod.yml up --build
+./nginx/generate-self-signed-cert.sh                 # self-signed cert into ssl/ (local use only)
+mkdir -p secrets && printf '%s' "$DATABASE_PASSWORD" > secrets/db_password.txt   # must equal DATABASE_PASSWORD
+export FRONTEND_URL=https://localhost DATABASE_PASSWORD=... JWT_SECRET=... \
+       JIRA_CLIENT_ID=... JIRA_CLIENT_SECRET=... JIRA_REDIRECT_URI=https://localhost/jira/callback \
+       JIRA_WEBHOOK_URL=https://localhost/api/v1/jira/webhook TOKEN_ENCRYPTION_KEY=... WEBHOOK_SECRET=...
+docker compose -f docker-compose.prod.yml up -d --wait
 ```
 
-| Service | URL | Notes |
-|---------|-----|-------|
-| Frontend (nginx) | http://localhost:80 | Port 80 bound to 127.0.0.1 |
-| Backend | http://127.0.0.1:3000 | Not exposed publicly |
-| Postgres | 127.0.0.1:5432 | Password via Docker secret |
+| What | URL |
+|------|-----|
+| REST API | https://localhost/api/v1 (HTTP on port 80 redirects here) |
+| Socket.IO | wss://localhost/realtime |
+| Liveness / readiness | https://localhost/api/v1/health/alive, https://localhost/api/v1/health/ready |
 
-> Requires `../3-course-sd-lifecycle-be/.env.prod` (all `${VAR}` must be set in environment/CI). Network `boardsync-prod-network` is `external: true`. Secrets: `../3-course-sd-lifecycle-be/secrets/db_password.txt`. **TLS termination (T-39) is NOT implemented** — nginx listens on 80 only; 443 port declared but no SSL config present.
+`ssl/` and `secrets/` are git-ignored, which is why a fresh checkout has no `ssl/` until the script runs. With `NODE_ENV=production` the backend refuses to start unless `FRONTEND_URL`, `JIRA_REDIRECT_URI` and `JIRA_WEBHOOK_URL` are `https://` URLs. `HTTP_PORT` / `HTTPS_PORT` move nginx off 80/443. The self-signed certificate makes browsers and curl complain (`curl -k`). This profile serves no web client (nginx proxies `/` to the backend too); use the full stack above for the UI. Protocol, redirect, header and probe checks with their commands: [`docs/tls-verification.md`](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/docs/tls-verification.md).
+
 
 ### Verification commands
 
@@ -200,15 +196,8 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 | `BACKEND_PORT` | Compose (full) | No | `3000` | Host port for backend direct access. |
 | `FRONTEND_CONTEXT` | Compose (full) | No | `../3-course-sd-lifecycle-fe` | Path to frontend repo for build context. |
 | `FRONTEND_IMAGE` | Compose (full) | No | `boardsync-frontend:full` | Prebuilt frontend image (use with `--no-build`). |
-| `DATABASE_PASSWORD` | Compose (full/prod) | Yes | — | Postgres password (shared backend+db). |
-| `JWT_SECRET` | Compose (full/prod) | Yes | — | Backend JWT secret. |
-| `TOKEN_ENCRYPTION_KEY` | Compose (full/prod) | Yes | — | Backend token encryption key. |
-| `WEBHOOK_SECRET` | Compose (full/prod) | Yes | — | Backend webhook secret. |
-| `JIRA_CLIENT_ID` | Compose (full/prod) | Yes | — | Atlassian OAuth client ID. |
-| `JIRA_CLIENT_SECRET` | Compose (full/prod) | Yes | — | Atlassian OAuth client secret. |
-| `RATE_LIMIT_PER_MINUTE` | Compose (full) | No | `100` | Override backend rate limit (per minute). |
-| `RATE_LIMIT_REGISTER` | Compose (full) | No | `5` | Override register rate limit (per 5 min). |
-| `RATE_LIMIT_LOGIN` | Compose (full) | No | `10` | Override login rate limit (per 5 min). |
+| `HTTP_PORT` / `HTTPS_PORT` | Compose (prod profile) | No | `80` / `443` | Host ports of the TLS nginx. |
+
 
 > Notes:
 > - Backend `Required` = validated by `src/config/validation.schema.ts` (no default). `Default` = schema default.
@@ -222,17 +211,21 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
 | Stack | Frontend | Backend | Database |
 |-------|----------|---------|----------|
-| FE `docker-compose.yml` (dev) | — (Vite) | `http://localhost:3000/api/v1/health` | `docker exec boardsync-postgres-dev pg_isready -U postgres -d boardsync_dev` |
 | BE `docker-compose.full.yml` | `http://localhost:8080/health` (nginx) | `http://127.0.0.1:3000/api/v1/health` | Internal (compose healthcheck) |
-| FE `docker-compose.prod.yml` | `http://localhost/health` (nginx) | `http://127.0.0.1:3000/api/v1/health` | Internal (compose healthcheck) |
+| BE `docker-compose.prod.yml` | — (no web client) | `https://localhost/api/v1/health/alive`, `/ready` (nginx, `curl -k`) | Internal (compose healthcheck) |
 
-**Backend health response** (`HealthStatus`):
-```json
-{ "status": "ok", "database": "connected", "timestamp": "2026-...Z" }
-```
-Returns 200 if DB reachable, 503 otherwise (`@SkipThrottle()`, `@Public()`).
+The backend has three probes:
+
+| Path under `/api/v1` | Checks | Response |
+|----------------------|--------|----------|
+| `/health` | process and database | 200 `{"status":"ok","database":"up","timestamp":"...","uptime":123.4}`, 503 `{"status":"error","database":"down",...}` |
+| `/health/alive` | liveness, process only (no database) | 200 `{"status":"ok","timestamp":"...","uptime":123.4}` |
+| `/health/ready` | readiness, database reachable | same as `/health` |
+
+All three are public and exempt from rate limiting. The production profile's healthchecks use `/alive` for nginx and `/ready` for the backend.
 
 ---
+
 
 ### API documentation & specifications
 
@@ -298,14 +291,6 @@ versions of each release): `pnpm dlx @playwright/test@<version> install chromium
 `pnpm dlx @playwright/test@<version> test`. The next release can be tried with the `msedge-beta` /
 `chrome-beta` channels (`use: { channel: 'msedge-beta' }` in a local config).
 
-## Environment variables
-
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `VITE_API_URL` | `http://localhost:3000/api/v1` | REST base URL. The Docker image is built with `/api/v1` (same origin). |
-| `VITE_WS_URL` | page origin | Origin of the Socket.IO server; the client connects to `<origin>/realtime`. Empty = same origin. |
-
-Values are read at build time (`import.meta.env`). See `.env.example`.
 
 ## API contract and generated types
 
@@ -319,11 +304,8 @@ pnpm api:generate   # docs/api/openapi.yaml -> src/api/api.generated.ts (determi
 
 CI regenerates the types and fails if `src/api/api.generated.ts` is out of date.
 
-## Specifications and diagrams
+## Diagrams
 
-- **Backend OpenSpec specs** (single source of truth): `../3-course-sd-lifecycle-be/openspec/specs/`
-  - List specs: `openspec list --specs --json` (run in backend repo)
-  - Active changes: `openspec list --json` (run in backend repo)
 - **PlantUML diagrams** (source): `docs/declarative/`
   - Component diagram: `01-component.puml`
   - Class diagram: `02-class.puml`
@@ -333,6 +315,7 @@ CI regenerates the types and fails if `src/api/api.generated.ts` is out of date.
   - State diagram: `04-state.puml`
 - **Rendered diagrams** (PNG): `docs/image/`
 - **Frontend architecture doc**: `docs/architecture/frontend-structure.md`
+- **OpenSpec specs**: see "API documentation & specifications" above.
 
 ## Branch & PR workflow
 
@@ -353,7 +336,7 @@ This guide covers the features currently implemented in BoardSync. Each section 
 ### Connecting Jira
 
 **What the user does:**  
-A board Admin navigates to **Jira Sync** (top navigation), clicks **Connect Jira** next to a board, and completes the Atlassian OAuth 2.0 (3LO) authorization flow with PKCE and anti-CSRF state. After granting consent, they are redirected back to the Jira Sync page where the connected Jira site URL is displayed. The Admin can later disconnect Jira, which removes the stored credentials.
+A board Admin navigates to **Jira Sync** (top navigation), clicks **Connect Jira** next to a board, and completes the Atlassian OAuth 2.0 (3LO) authorization flow with PKCE and anti-CSRF state. After granting consent, Atlassian sends the browser to `/jira/callback`, which completes the connection and shows "Connected to <site>" with a **Back to Jira Sync** link; the Jira Sync page then displays the connected site URL. The Admin can later disconnect Jira, which removes the stored credentials.
 
 **Expected result:**  
 - The board shows "Connected to <site-url> since <timestamp>"  
@@ -443,7 +426,7 @@ Viewers see labels read-only.
 - Label names are unique per board (trimmed, case-insensitive; 409 on duplicate)  
 - Colors are hex values; default `#3498db`  
 - Attaching/detaching publishes `card.updated`  
-- Creating/renaming/deleting labels publishes `board.updated`  
+- Deleting a label publishes `board.updated`; creating or renaming a label publishes no event, so other clients see it after their next refetch  
 - Label from another board cannot be attached (404)
 
 **UI route / component:**  
@@ -474,8 +457,8 @@ A background scheduler runs every 60 seconds (`REMINDER_INTERVAL_SECONDS`). For 
 - Marking read persists `readAt`; unread count shown on bell
 
 **UI route / component:**  
-- Card dialog deadline field: `src/features/cards/CardDialog.tsx` (lines 276-288)  
-- Column view badges: `src/features/boards/ColumnView.tsx` (lines 96-116)  
+- Card dialog deadline field: `src/features/cards/CardDialog.tsx` (deadline field)  
+- Column view badges: `src/features/boards/ColumnView.tsx` (`getDeadlineBadge`)  
 - Notifications bell: `src/features/notifications/NotificationsBell.tsx`  
 - Scheduler (backend): `REMINDER_INTERVAL_SECONDS` env var
 
@@ -491,21 +474,21 @@ A background scheduler runs every 60 seconds (`REMINDER_INTERVAL_SECONDS`). For 
 In the **Card dialog**, the **Comments** section loads comments oldest-first with cursor pagination (**Load more comments**). Members and Admins can:
 - **Add a comment**: type in the textarea, click **Add comment** → appears instantly (optimistic), then confirmed by server
 - **Delete a comment**: click **Delete** on own comment (or any comment if Admin) → removed immediately
-- See **"• Jira"** badge on comments synced from Jira
+- See the **"• Jira"** badge on comments that were mirrored to Jira (`syncedToJira`; mirroring is one-way, BoardSync → Jira)
 
 Comments are ordered by `(createdAt, id)`; paging uses opaque cursors that survive deletions. A user removed from the board cannot list or delete their old comments (404).
 
 **Expected result:**  
 - New comment appears at the bottom with author name ("You" for current user) and timestamp  
 - Pagination loads older comments without duplicates  
-- Deleted comments disappear from all clients in real-time (`card.commented` event)  
+- A new comment reaches other clients as `card.commented`; deleting one publishes `board.updated`, and clients refetch the board  
 - Author or Admin can delete; removed members get 404 on list/delete but comment remains
 
 **UI route / component:**  
 - Card dialog → Comments section: `src/features/cards/CardComments.tsx`
 
 **Spec:** `../3-course-sd-lifecycle-be/openspec/specs/labels-comments/spec.md` (Comments and their access, Comment paging)  
-**Spec:** `../3-course-sd-lifecycle-be/openspec/specs/event-bus/spec.md` (`card.commented` event)
+**Spec:** `../3-course-sd-lifecycle-be/openspec/specs/event-bus/spec.md` (`card.commented` event), `labels-comments` (Deletion events)
 
 ![Comments section in card dialog](docs/image/guide-comments.png)
 
@@ -517,11 +500,11 @@ Comments are ordered by `(createdAt, id)`; paging uses opaque cursors that survi
 No action required — real-time is automatic. When any connected user:
 - Creates, edits, moves, or deletes a card
 - Adds/removes a column
-- Adds/removes a label
-- Adds/deletes a comment
-- Changes board membership
+- Attaches/detaches a label on a card, or deletes a label
+- Adds a comment (a deleted comment arrives as `board.updated`)
+- Removes a member from the board (`member.removed`)
 
-…the change appears instantly on all other connected clients viewing the same board, without page reload. The **Notifications bell** also receives `notification.created` events (deadline reminders, Jira sync conflicts) pushed to the user's personal room.
+…the change appears on all other connected clients viewing the same board, without page reload. Creating or renaming a label, inviting a member and changing a role publish no event; other clients see those after their next refetch. The **Notifications bell** also receives `notification.created` events (deadline reminders, Jira sync conflicts) pushed to the user's personal room.
 
 **Expected result:**  
 - All clients in `board:{boardId}` room receive `card.created`, `card.updated`, `card.moved`, `card.commented`, `board.updated`  
@@ -532,8 +515,8 @@ No action required — real-time is automatic. When any connected user:
 
 **UI route / component:**  
 - WebSocket hook: `src/hooks/useWebSocket.ts`  
-- Board page subscription: `src/features/boards/BoardPage.tsx` (lines 29-90)  
-- Notifications bell subscription: `src/features/notifications/NotificationsBell.tsx` (lines 50-68)
+- Board page subscription: `src/features/boards/BoardPage.tsx`  
+- Notifications bell subscription: `src/features/notifications/NotificationsBell.tsx`
 
 **Spec:** `../3-course-sd-lifecycle-be/openspec/specs/event-bus/spec.md` (Realtime delivery, Authenticated handshake, Heartbeat)
 
@@ -543,42 +526,50 @@ No action required — real-time is automatic. When any connected user:
 
 ## FR/NFR Compliance
 
-This table maps every requirement ID from `../3-course-sd-lifecycle-be/openspec/specs/` to its implementation status and evidence. ✅ = fully implemented and tested; ⚠️ = partially implemented or missing a piece; ❌ = not implemented.
+Requirement IDs are the project's FR-01…FR-13 and NFR list. ✅ = implemented and verified as noted; ⚠️ = partial; ❌ = not implemented; ❔ = not measured. Evidence links point to the `dev` branch of the backend repository or to files in this repository; [KAN-54 integration checklist](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/docs/verification/KAN-54-integration-checklist.md) records the live checks per FR.
 
 | ID | Requirement (short) | Spec | Status | Evidence |
 |----|---------------------|------|--------|----------|
-| FR-01 | Registration & login (email/password, JWT, rate limits) | [user-auth](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/user-auth/spec.md) | ✅ Met | `src/modules/auth/` (presentation, application), `src/features/auth/`, `test/auth.e2e-spec.ts` |
-| FR-02 | Jira OAuth 2.0 (3LO) connect/disconnect/status, PKCE, state | [jira-oauth-connection](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-oauth-connection/spec.md) | ✅ Met | `src/modules/jira-sync/application/jira-oauth.service.ts`, `src/features/jira-sync/JiraSyncPage.tsx`, `JiraCallbackPage.tsx` |
-| FR-03, FR-04 | Boards, columns, cards with role-based permissions | [boards-columns](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/boards-columns/spec.md) | ✅ Met | `src/modules/boards/`, `src/features/boards/`, `test/boards-cards.e2e-spec.ts` |
-| FR-05 | Jira project link, status→column mapping, idempotent import | [jira-issue-import](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-issue-import/spec.md) | ✅ Met | `src/modules/jira-sync/application/jira-import.service.ts`, `src/features/jira-sync/JiraImportPanel.tsx` |
-| FR-06 | Board→Jira status sync (≤5 s, one transition, sync log, conflict check) | [jira-status-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-status-sync/spec.md) | ⚠️ Partial | `src/modules/jira-sync/application/jira-status-sync.service.ts` — **gap**: no outbox/retry for failed writes (T-35/T-49); no user-facing failure surface (T-34/T-35); needs OpenSpec change (BE) |
-| FR-07 | Jira→Board status sync via webhook (≤5 s, dedup, watermark, HTTPS required) | [jira-webhook-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-webhook-sync/spec.md) | ⚠️ Partial | `src/modules/jira-sync/application/jira-webhook.service.ts` — **gap**: production HTTPS webhook URL not available locally (T-39); needs OpenSpec change (BE) |
-| FR-08 | Board labels (CRUD, unique name, default color) & card comments (paging, author/Admin delete) | [labels-comments](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/labels-comments/spec.md) | ✅ Met | `src/modules/boards/`, `src/features/cards/CardLabels.tsx`, `CardComments.tsx` |
-| FR-09 | 24-h deadline reminders (idempotent scheduler, notifications, realtime push) | [deadline-reminders](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/deadline-reminders/spec.md) | ✅ Met | `src/modules/boards/`, `src/features/notifications/NotificationsBell.tsx`, `REMINDER_INTERVAL_SECONDS` env |
-| FR-10 | Comment mirroring to Jira (ADF, synced flag, sync log, 5 s budget) | [jira-comment-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-comment-sync/spec.md) | ⚠️ Partial | `src/modules/jira-sync/application/jira-comment-sync.service.ts` — **gap**: no outbox/retry for failed writes (T-35/T-49); needs OpenSpec change (BE) |
-| FR-11 | Real-time updates (Socket.IO rooms, auth handshake, heartbeat, member removal) | [event-bus](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/event-bus/spec.md) | ✅ Met | `src/modules/realtime/`, `src/hooks/useWebSocket.ts`, `src/features/boards/BoardPage.tsx` |
-| FR-12 | Board members (invite by email, roles, last-Admin protection) | [board-members](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/board-members/spec.md) | ✅ Met | `src/modules/boards/`, `src/features/boards/MembersPanel.tsx` |
-| FR-13 | Sync conflict detection/logging/admin notification/resolution | [jira-sync-conflicts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-sync-conflicts/spec.md) | ⚠️ Partial | `src/modules/jira-sync/application/jira-sync-conflicts.service.ts`, `src/features/jira-sync/JiraConflictsPanel.tsx` — **gap**: UI shows conflicts but cannot resolve them; needs OpenSpec change (BE) |
-| NFR-SEC-2 | Jira tokens encrypted at rest (AES-256-GCM), never in logs/responses | [jira-token-vault](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-token-vault/spec.md) | ✅ Met | `src/modules/jira-sync/infrastructure/aes-gcm-token-cipher.ts`, `src/common/logger/sanitizing-logger.service.ts` |
-| NFR-SEC-3 | TLS/HTTPS for production OAuth redirect & webhook receiver | [jira-oauth-connection](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-oauth-connection/spec.md) | ❌ Not met | `docker-compose.prod.yml` declares port 443 but `nginx/conf.d` has **no SSL config**; `./ssl` dir NOT FOUND; needs OpenSpec change (BE) |
-| NFR-SEC-4 | Bcrypt cost factor ≥10 (configurable) | [app-configuration](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/app-configuration/spec.md) | ✅ Met | `src/config/validation.schema.ts` validates `BCRYPT_ROUNDS` ≥10; default 10 in `.env.example` |
-| NFR-PERF-1 | 5-second budget for all Jira outbound calls (status sync, webhook, comment sync) | [jira-status-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-status-sync/spec.md), [jira-webhook-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-webhook-sync/spec.md), [jira-comment-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-comment-sync/spec.md) | ✅ Met | `SYNC_BUDGET_MS = 5000` in `jira-status-sync.service.ts`, `jira-webhook.service.ts`, `jira-comment-sync.service.ts` |
+| FR-01 | Registration & login (email/password, JWT, rate limits) | [user-auth](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/user-auth/spec.md) | ✅ Met | [auth.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/auth.e2e-spec.ts), [](src/features/auth/), [auth.spec.ts](e2e/auth.spec.ts) |
+| FR-02 | Jira OAuth 2.0 (3LO) connect/disconnect/status, PKCE, state | [jira-oauth-connection](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-oauth-connection/spec.md) | ✅ Met | [jira-oauth.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/jira-oauth.e2e-spec.ts), [jira-oauth.service.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/modules/jira-sync/application/jira-oauth.service.ts), [JiraSyncPage.tsx](src/features/jira-sync/JiraSyncPage.tsx), [JiraCallbackPage.tsx](src/features/jira-sync/JiraCallbackPage.tsx) |
+| FR-03, FR-04 | Boards, columns, cards with role-based permissions | [boards-columns](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/boards-columns/spec.md) | ✅ Met | [boards.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/boards.e2e-spec.ts), [BoardPage.tsx](src/features/boards/BoardPage.tsx), [board.spec.ts](e2e/board.spec.ts) |
+| FR-05 | Jira project link, status→column mapping, idempotent import | [jira-issue-import](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-issue-import/spec.md) | ✅ Met | [jira-import.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/jira-import.e2e-spec.ts), [jira-import.service.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/modules/jira-sync/application/jira-import.service.ts), [JiraImportPanel.tsx](src/features/jira-sync/JiraImportPanel.tsx) |
+| FR-06 | Board→Jira status sync (≤5 s, one transition, sync log, conflict check) | [jira-status-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-status-sync/spec.md) | ✅ Met (automated only) | [jira-status-sync.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/jira-status-sync.e2e-spec.ts), [jira-status-sync.service.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/modules/jira-sync/application/jira-status-sync.service.ts). Faked Jira gateway; no live round trip. Failed writes are not retried (see NFR-REL-2). |
+| FR-07 | Jira→Board status sync via webhook (≤5 s, dedup, watermark, HTTPS required) | [jira-webhook-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-webhook-sync/spec.md) | ✅ Met (automated + live negative) | [jira-webhook.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/jira-webhook.e2e-spec.ts), [jira-webhook.service.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/modules/jira-sync/application/jira-webhook.service.ts). Signed deliveries in the e2e suite; live check only that an unsigned delivery gets 401. |
+| FR-08 | Board labels (CRUD, unique name, default color) & card comments (paging, author/Admin delete) | [labels-comments](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/labels-comments/spec.md) | ✅ Met | [labels-comments.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/labels-comments.e2e-spec.ts), [labels.service.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/modules/boards/application/labels.service.ts), [CardLabels.tsx](src/features/cards/CardLabels.tsx), [CardComments.tsx](src/features/cards/CardComments.tsx) |
+| FR-09 | 24-h deadline reminders (idempotent scheduler, notifications, realtime push) | [deadline-reminders](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/deadline-reminders/spec.md) | ✅ Met | [notifications.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/notifications.e2e-spec.ts), [deadline-reminders.service.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/modules/boards/application/deadline-reminders.service.ts), [NotificationsBell.tsx](src/features/notifications/NotificationsBell.tsx) |
+| FR-10 | Comment mirroring to Jira (ADF, synced flag, sync log, 5 s budget) | [jira-comment-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-comment-sync/spec.md) | ✅ Met (automated only) | [jira-comment-sync.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/jira-comment-sync.e2e-spec.ts), [jira-comment-sync.service.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/modules/jira-sync/application/jira-comment-sync.service.ts). Faked Jira gateway; failed writes are not retried (see NFR-REL-2). |
+| FR-11 | Real-time updates (Socket.IO rooms, auth handshake, heartbeat, member removal) | [event-bus](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/event-bus/spec.md) | ✅ Met | [realtime.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/realtime.e2e-spec.ts), [useWebSocket.ts](src/hooks/useWebSocket.ts), [BoardPage.tsx](src/features/boards/BoardPage.tsx) |
+| FR-12 | Board members (invite by email, roles, last-Admin protection) | [board-members](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/board-members/spec.md) | ✅ Met | [members.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/members.e2e-spec.ts), [MembersPanel.tsx](src/features/boards/MembersPanel.tsx), [viewer.spec.ts](e2e/viewer.spec.ts) |
+| FR-13 | Sync conflict detection/logging/admin notification/resolution | [jira-sync-conflicts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-sync-conflicts/spec.md) | ✅ Met (automated only) | [jira-conflicts.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/jira-conflicts.e2e-spec.ts), [jira-sync-conflicts.service.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/modules/jira-sync/application/jira-sync-conflicts.service.ts), [JiraConflictsPanel.tsx](src/features/jira-sync/JiraConflictsPanel.tsx) |
+| NFR-PERF-1 | Board with 100 cards loads in ≤ 2 s | — | ✅ Met | Playwright [performance.spec.ts](e2e/performance.spec.ts): 381–451 ms in Chromium, Firefox and Edge ([KAN-54 integration checklist](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/docs/verification/KAN-54-integration-checklist.md)); see "Performance and compatibility" above. |
+| NFR-PERF-2 | Typical API request ≤ 300 ms (p95) | — | ❔ Not measured | No load test is merged on `dev`. |
+| NFR-PERF-3 | Board ↔ Jira propagation ≤ 5 s | [jira-status-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-status-sync/spec.md), [jira-webhook-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-webhook-sync/spec.md), [jira-comment-sync](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-comment-sync/spec.md) | ✅ Met (automated only) | `SYNC_BUDGET_MS = 5000` in the status, webhook and comment sync services, asserted in [jira-status-sync.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/jira-status-sync.e2e-spec.ts), [jira-webhook.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/jira-webhook.e2e-spec.ts) and [jira-comment-sync.e2e-spec.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/test/jira-comment-sync.e2e-spec.ts) with a faked gateway. |
+| NFR-REL-1 | Availability ≥ 99.5 % per month | [tls-reverse-proxy](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/tls-reverse-proxy/spec.md) | ❔ Not measured | Only the means exist: `/api/v1/health/alive` and `/ready`, container healthchecks, migrations before start ([TLS verification record](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/docs/tls-verification.md)). |
+| NFR-REL-2 | Jira outage: changes queued and resynced ≤ 1 min after recovery | — | ❌ Not met | Failed Jira writes are logged (`sync_logs`) but not queued or retried. The outbox is in review (backend PR #93, KAN-46); update this row when it merges. |
+| NFR-SEC-1 | JWT lifetime ≤ 1 h | [app-configuration](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/app-configuration/spec.md) | ✅ Met | [validation.schema.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/config/validation.schema.ts) rejects `JWT_EXPIRES_IN` above 1 h (default `1h`). |
+| NFR-SEC-2 | Jira tokens encrypted at rest (AES-256-GCM), never in logs/responses | [jira-token-vault](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/jira-token-vault/spec.md) | ✅ Met | [aes-gcm-token-cipher.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/modules/jira-sync/infrastructure/aes-gcm-token-cipher.ts), [sanitizing-logger.service.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/common/logger/sanitizing-logger.service.ts) |
+| NFR-SEC-3 | HTTPS / TLS 1.2+ | [tls-reverse-proxy](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/tls-reverse-proxy/spec.md) | ✅ Met (self-signed certificate, local run) | Backend `docker-compose.prod.yml` profile (KAN-50): [boardsync.conf](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/nginx/conf.d/boardsync.conf) (TLS 1.2/1.3 only, 80→443 redirect), [generate-self-signed-cert.sh](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/nginx/generate-self-signed-cert.sh). TLS 1.0/1.1 refused and `wss://` checked in the [TLS verification record](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/docs/tls-verification.md). Not verified: a CA-issued certificate, real Atlassian callbacks over HTTPS. See "Production-like stack with TLS" above. |
+| NFR-SEC-4 | Passwords hashed with bcrypt, cost ≥ 10 | [app-configuration](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/main/openspec/specs/app-configuration/spec.md) | ✅ Met | [validation.schema.ts](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/src/config/validation.schema.ts) validates `BCRYPT_ROUNDS` 10–15 (default 10). |
+| NFR-SCA-1 | Up to 500 concurrent users | — | ❔ Not measured | No load test; the course project cannot generate 500 users on laptops (backend `docs/process.md`, risk R7). |
+| NFR-MNT-1 | Daily automated PostgreSQL backup | — | ❌ Not met | No backup job or script on `dev` (planned in T-42). |
+| NFR-UI-1 | Responsive layout from 1280 px | — | ✅ Met | No horizontal overflow at 1280 × 720 in [performance.spec.ts](e2e/performance.spec.ts) ([KAN-54 integration checklist](https://github.com/inryceu/3-course-sd-lifecycle-be/blob/dev/docs/verification/KAN-54-integration-checklist.md)). |
+| NFR-COMP-1 | Latest two versions of Chrome, Firefox, Edge | — | ⚠️ Partial | CI runs the current stable Chromium, Firefox and Edge; the previous release is not run (accepted deviation, see "Performance and compatibility" above). |
 
 ---
 
 ### Known limitations
 
-The following features are specified but **not yet implemented** in the frontend:
+- **No outbox or retry for failed Jira writes** (FR-06, FR-10; NFR-REL-2). Failed status transitions and comments are logged (`sync_logs`, `outcome: unknown` for timeouts) and not retried. Backend PR #93 (KAN-46) adds an outbox; KAN-59 adds retry/backoff.
+- **Sync failures are visible only to operators** (log and `sync_logs`); users get no notification.
+- **Automated checks only for the Jira round trip.** Sync, webhook and comment mirroring run against a faked Jira gateway; they have not been run against a disposable Jira project, so the real webhook payload format is unconfirmed.
+- **Concurrent card edits.** The card panel keeps a user's draft when someone else edits the card; the later save overwrites the other change without a warning.
+- **Production-like profile serves no web client.** The backend's nginx proxies every path, including `/`, to the API; the SPA is served by the full-stack compose (`docker-compose.full.yml`) only.
+- **Not measured:** API latency p95 (NFR-PERF-2), availability (NFR-REL-1), 500 concurrent users (NFR-SCA-1). **Not implemented:** automated backups (NFR-MNT-1).
+- **Column type `REVIEW`** has no behavior of its own; it is treated as a regular column.
+- **Markdown in descriptions/comments** is stored as plain text and not rendered.
 
-- **Two-way Jira status sync** — Moving a card in BoardSync does not update the Jira issue status (KAN-36, T-25, T-26). Import is one-way only.
-- **Jira webhook delivery** — Jira changes do not appear on the board via webhook (KAN-37). Webhook endpoint exists but sync is not wired.
-- **Jira comment sync** — Comments added in Jira are not imported; comments added in BoardSync are not pushed to Jira (KAN-42).
-- **Jira conflict resolution UI** — `JiraConflictsPanel` exists but the conflict resolution flow (FR-13) is backend-only; UI shows conflicts but cannot resolve them.
-- **Board description editing** — Boards have a `description` field (shown on Boards list) but no UI to edit it.
-- **Column type `REVIEW`** — Defined in schema but no special behavior; treated as a regular column type.
-- **Markdown in descriptions/comments** — Stored as plain text; no rendering.
-
-For the authoritative list of planned work, see `../3-course-sd-lifecycle-be/openspec/changes/`.
+Planned work lives in the backend `openspec/changes/` and in the open pull requests of both repositories.
 
 ## Related
 
