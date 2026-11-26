@@ -86,9 +86,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Fails below the agreed 70 % line coverage (coverage.thresholds in vitest.config.ts).
+      # Fails below 75 % lines overall (vitest.config.ts) and below the boards/cards gates of
+      # scripts/check-module-coverage.mjs, which prints the per-module table into this log.
       - name: Run tests with coverage
         run: pnpm test:coverage
+
+      # The same table on the run summary page, also when a gate failed.
+      - name: Coverage by module
+        if: always()
+        run: node scripts/check-module-coverage.mjs >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

@@ -11,6 +11,11 @@ export function dropPosition(
   beforeCardId: string | null
 ): number {
   const cards = board.columns.find((c) => c.id === columnId)?.cards ?? [];
+  // Dropped on itself: it stays put (it is not among `others`, so the lookup below would miss it).
+  if (beforeCardId === cardId) {
+    const own = cards.findIndex((c) => c.id === cardId);
+    if (own !== -1) return own;
+  }
   const others = cards.filter((c) => c.id !== cardId);
   if (!beforeCardId) return others.length;
   const index = others.findIndex((c) => c.id === beforeCardId);
