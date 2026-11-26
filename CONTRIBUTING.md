@@ -43,7 +43,7 @@ Pure refactors and documentation do not need a change.
 ## Pull requests
 
 1. Open a PR into `dev` from your `KAN-<n>` branch; the template is pre-filled - fill every section (Jira key, summary, OpenSpec link, test evidence, SOLID/boundaries checklist).
-2. CI must be green: **Lint**, **TypeCheck**, **Tests**, **Build**, **Docker Build**.
+2. CI must be green: **Lint**, **TypeCheck**, **Tests**, **Build**, **Docker Build**, **Dependency Audit**.
    - **Tests** fails below the agreed line coverage: 70 % for the whole repository (both repos) and 85 % for each backend `auth` / `jira-sync` application service. The report is attached to the workflow run as the `coverage` artifact.
    - **Docker Build** builds the `production` stage of the `Dockerfile` (not pushed).
 3. At least **one approval** from the ticket's Reviewer (`CODEOWNERS` requests the module owner automatically). Stale approvals are dismissed on new commits; conversations must be resolved.
@@ -67,9 +67,16 @@ pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build   # frontend; al
 
 Frontend folder and import rules are in [docs/architecture/frontend-structure.md](./docs/architecture/frontend-structure.md); the lint step enforces them.
 
+## Dependencies
+
+- **pnpm only** (`packageManager` in `package.json`, enabled through corepack). Never run `npm install` or `yarn`; commit only `pnpm-lock.yaml`. CI and Docker use `pnpm install --frozen-lockfile`.
+- **Node 22 LTS**: `.nvmrc` is the single source (`nvm use`); `engines` is `>=22 <23`, CI reads `.nvmrc` and the Dockerfile uses `node:22-alpine`. Moving to another Node major means changing all of them in one PR (and in the backend repo).
+- **Dependabot** (`.github/dependabot.yml`) opens monthly PRs: minor/patch updates grouped into production and development PRs, major versions ignored (upgrade them deliberately), Docker `node` majors ignored. Review them like any PR; nothing is auto-merged. `src/api/api.generated.ts` is never edited by hand.
+- **Audit policy**: the `Dependency Audit` job runs `pnpm audit --audit-level=critical` on every push/PR and weekly; it is a required check (`pnpm audit` locally runs the same command).
+
 ## Protected branches
 
-`main` and `dev` require a pull request, one approval, the five status checks above and forbid force pushes. The settings are versioned, so both repositories stay identical:
+`main` and `dev` require a pull request, one approval, the six status checks above and forbid force pushes. The settings are versioned, so both repositories stay identical:
 
 ```bash
 # needs admin rights on the repository; review the payload first
@@ -77,4 +84,4 @@ Frontend folder and import rules are in [docs/architecture/frontend-structure.md
 ./scripts/setup-branch-protection.sh               # applies to both repositories
 ```
 
-Re-run the script whenever the required-check list in it changes (KAN-51 added **Docker Build**). GitHub can only require a check that has already reported on the repository, so run it after the workflow change is merged.
+Re-run the script whenever the required-check list in it changes (KAN-51 added **Docker Build**, KAN-52 **Dependency Audit**). GitHub can only require a check that has already reported on the repository, so run it after the workflow change is merged.

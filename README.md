@@ -53,8 +53,8 @@ src/
 | Styling | Tailwind CSS | 3+ |
 | Real-time | Socket.IO Client | 4+ |
 | Testing | Vitest | 1+ |
-| Runtime | Node.js | 20+ |
-| Package Manager | pnpm | 9+ |
+| Runtime | Node.js | 22 LTS (`.nvmrc`) |
+| Package Manager | pnpm | 9 (`packageManager`) |
 | Containerization | Docker / Docker Compose | — |
 | CI/CD | GitHub Actions (workflow in `.github/workflows/ci.yml`) | — |
 
@@ -70,7 +70,7 @@ src/
 ## Getting started
 
 ```bash
-# install dependencies (pnpm 9, Node 20+)
+# install dependencies (pnpm 9, Node 22 LTS: `nvm use`)
 pnpm install
 
 # run in development (Vite on http://localhost:5173, expects the backend on :3000)
@@ -157,6 +157,13 @@ with the older `@playwright/test` release that bundled it (the release notes lis
 versions of each release): `pnpm dlx @playwright/test@<version> install chromium firefox` and then
 `pnpm dlx @playwright/test@<version> test`. The next release can be tried with the `msedge-beta` /
 `chrome-beta` channels (`use: { channel: 'msedge-beta' }` in a local config).
+
+## Dependencies
+
+- **pnpm only** (`packageManager` in `package.json`, enabled through corepack). Never run `npm install` or `yarn`; commit only `pnpm-lock.yaml`. CI and Docker use `pnpm install --frozen-lockfile`.
+- **Node 22 LTS**: `.nvmrc` is the single source (`nvm use`); `engines` is `>=22 <23`, CI reads `.nvmrc` and the Dockerfile uses `node:22-alpine`. Moving to another Node major means changing all of them in one PR (and in the backend repo).
+- **Dependabot** (`.github/dependabot.yml`) opens monthly PRs: minor/patch updates grouped into production and development PRs, major versions ignored (upgrade them deliberately), Docker `node` majors ignored. Review them like any PR; nothing is auto-merged. `src/api/api.generated.ts` is never edited by hand.
+- **Audit policy**: the `Dependency Audit` job runs `pnpm audit --audit-level=critical` on every push/PR and weekly; it is a required check (`pnpm audit` locally runs the same command). `package.json` carries one override, `tinypool@^2.1.2`, for a critical advisory in vitest 3's test runner (vitest 4+ needs Vite 6+); drop it with the next vitest major.
 
 ## Environment variables
 
