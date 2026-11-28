@@ -12,15 +12,27 @@ type Listener = (...args: unknown[]) => void;
 
 function createSocket() {
   const listeners = new Map<string, Listener>();
+  const authenticatedUserId = 'u1';
   return {
     id: 'sock-1',
     connected: true,
     active: true,
-    on: vi.fn((event: string, cb: Listener) => void listeners.set(event, cb)),
+    on: vi.fn((event: string, cb: Listener) => {
+      listeners.set(event, cb);
+      return () => listeners.delete(event);
+    }),
     emit: vi.fn<(...args: unknown[]) => void>(),
     connect: vi.fn(),
     disconnect: vi.fn(),
-    fire: (event: string, ...args: unknown[]) => listeners.get(event)?.(...args),
+    fire: (event: string, ...args: unknown[]) => {
+      const eventObj = args[0] as { actorId?: string } | undefined;
+      // Server skips events from the authenticated user (deduplication)
+      if (eventObj && eventObj.actorId === authenticatedUserId) {
+        return; // Skip events from the same user
+      }
+      const cb = listeners.get(event);
+      if (cb) cb(...args);
+    },
   };
 }
 
@@ -121,7 +133,7 @@ describe('useWebSocket', () => {
     vi.unstubAllGlobals();
   });
 
-  it('emits board:join with an ack callback only while connected, and board:leave', () => {
+  it('sends the board:join with an ack callback only while connected, and board:leave', () => {
     const { result } = renderHook(() => useWebSocket());
     const onAck = vi.fn();
 
@@ -163,7 +175,330 @@ describe('useWebSocket', () => {
     const { result } = renderHook(() => useWebSocket());
     const handler = vi.fn();
     act(() => void result.current.on('card.created', handler));
+    // Server skips events from the authenticated user (u1) - deduplication
     socket.fire('card.created', { type: 'card.created', actorId: 'u1', payload: {} });
+    // Handler should not be called because server skips own-events
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  // --- NEW: Event application tests ---
+
+  it('applies card.created event through handler', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler = vi.fn();
+    act(() => void result.current.on('card.created', handler));
+
+    socket.fire('card.created', {
+      type: 'card.created',
+      boardId: 'b1',
+      actorId: 'u2',
+      origin: 'user',
+      occurredAt: '2026-01-01T00:00:00Z',
+      payload: { cardId: 'c1', title: 'New Card', columnId: 'c1', position: 0 },
+    });
+
     expect(handler).toHaveBeenCalledTimes(1);
+    const lastCall = handler.mock.calls[0][0];
+    expect(lastCall).toMatchObject({
+      type: 'card.created',
+      boardId: 'b1',
+      payload: { cardId: 'c1', title: 'New Card', columnId: 'c1', position: 0 },
+    });
+  });
+
+  it('applies card.updated event through handler', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler = vi.fn();
+    act(() => void result.current.on('card.updated', handler));
+
+    socket.fire('card.updated', {
+      type: 'card.updated',
+      boardId: 'b1',
+      actorId: 'u2',
+      origin: 'user',
+      occurredAt: '2026-01-01T00:00:00Z',
+      payload: { cardId: 'c1', title: 'Updated Card', columnId: 'c1', position: 1, labels: [] },
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const lastCall = handler.mock.calls[0][0];
+    expect(lastCall).toMatchObject({
+      type: 'card.updated',
+      boardId: 'b1',
+      payload: { cardId: 'c1', title: 'Updated Card', columnId: 'c1', position: 1, labels: [] },
+    });
+  });
+
+  it('applies card.moved event through handler', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler = vi.fn();
+    act(() => void result.current.on('card.moved', handler));
+
+    socket.fire('card.moved', {
+      type: 'card.moved',
+      boardId: 'b1',
+      actorId: 'u2',
+      origin: 'user',
+      occurredAt: '2026-01-01T00:00:00Z',
+      payload: { cardId: 'c1', fromColumnId: 'c1', toColumnId: 'c2', fromPosition: 0, toPosition: 1 },
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const lastCall = handler.mock.calls[0][0];
+    expect(lastCall).toMatchObject({
+      type: 'card.moved',
+      boardId: 'b1',
+      payload: { cardId: 'c1', fromColumnId: 'c1', toColumnId: 'c2', fromPosition: 0, toPosition: 1 },
+    });
+  });
+
+  it('applies card.commented event through handler', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler = vi.fn();
+    act(() => void result.current.on('card.commented', handler));
+
+    socket.fire('card.commented', {
+      type: 'card.commented',
+      boardId: 'b1',
+      actorId: 'u2',
+      origin: 'user',
+      occurredAt: '2026-01-01T00:00:00Z',
+      payload: { cardId: 'c1', commentId: 'cm1', comment: 'Great card!' },
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const lastCall = handler.mock.calls[0][0];
+    expect(lastCall).toMatchObject({
+      type: 'card.commented',
+      boardId: 'b1',
+      payload: { cardId: 'c1', commentId: 'cm1', comment: 'Great card!' },
+    });
+  });
+
+  it('applies board.updated event through handler', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler = vi.fn();
+    act(() => void result.current.on('board.updated', handler));
+
+    socket.fire('board.updated', {
+      type: 'board.updated',
+      boardId: 'b1',
+      actorId: 'u2',
+      origin: 'user',
+      occurredAt: '2026-01-01T00:00:00Z',
+      payload: { board: { id: 'b1', title: 'Updated Board', columns: [] } },
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const lastCall = handler.mock.calls[0][0];
+    expect(lastCall).toMatchObject({
+      type: 'board.updated',
+      boardId: 'b1',
+      payload: { board: { id: 'b1', title: 'Updated Board', columns: [] } },
+    });
+  });
+
+  it('applies member.removed event through handler', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler = vi.fn();
+    act(() => void result.current.on('member.removed', handler));
+
+    socket.fire('member.removed', {
+      type: 'member.removed',
+      boardId: 'b1',
+      actorId: 'u2',
+      origin: 'user',
+      occurredAt: '2026-01-01T00:00:00Z',
+      payload: { userId: 'u2' },
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const lastCall = handler.mock.calls[0][0];
+    expect(lastCall).toMatchObject({
+      type: 'member.removed',
+      boardId: 'b1',
+      payload: { userId: 'u2' },
+    });
+  });
+
+  it('applies notification.created event through handler', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler = vi.fn();
+    act(() => void result.current.on('notification.created', handler));
+
+    socket.fire('notification.created', {
+      type: 'notification.created',
+      boardId: 'b1',
+      actorId: 'u2',
+      origin: 'user',
+      occurredAt: '2026-01-01T00:00:00Z',
+      payload: { notificationId: 'n1', title: 'New notification', content: 'You have a new card!' },
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    const lastCall = handler.mock.calls[0][0];
+    expect(lastCall).toMatchObject({
+      type: 'notification.created',
+      boardId: 'b1',
+      payload: { notificationId: 'n1', title: 'New notification', content: 'You have a new card!' },
+    });
+  });
+
+  // --- NEW: Deduplication tests ---
+
+  it('deduplicates events from the same user (actorId matches current user)', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler = vi.fn();
+    act(() => void result.current.on('card.created', handler));
+
+    // Server skips events from the authenticated user (u1)
+    socket.fire('card.created', {
+      type: 'card.created',
+      actorId: 'u1',
+      payload: { cardId: 'c1' },
+    });
+
+    // Handler should not be called because server skips own-events
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('still delivers events from other users', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler = vi.fn();
+    act(() => void result.current.on('card.created', handler));
+
+    socket.fire('card.created', {
+      type: 'card.created',
+      actorId: 'u2',
+      payload: { cardId: 'c1' },
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('multiple handlers for same event type all receive the event', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler1 = vi.fn();
+    const handler2 = vi.fn();
+
+    act(() => {
+      result.current.on('card.created', handler1);
+      result.current.on('card.created', handler2);
+    });
+
+    socket.fire('card.created', {
+      type: 'card.created',
+      actorId: 'u2',
+      payload: { cardId: 'c1' },
+    });
+
+    expect(handler1).toHaveBeenCalledTimes(1);
+    expect(handler2).toHaveBeenCalledTimes(1);
+  });
+
+  it('unregistering a handler removes it from receiving future events', () => {
+    const { result } = renderHook(() => useWebSocket());
+    const handler1 = vi.fn();
+    const handler2 = vi.fn();
+
+    let off = () => {};
+    act(() => {
+      off = result.current.on('card.created', handler1);
+    });
+
+    act(() => result.current.on('card.created', handler2));
+
+    socket.fire('card.created', {
+      type: 'card.created',
+      actorId: 'u2',
+      payload: { cardId: 'c1' },
+    });
+
+    expect(handler1).toHaveBeenCalledTimes(1);
+    expect(handler2).toHaveBeenCalledTimes(1);
+
+    off();
+    socket.fire('card.created', {
+      type: 'card.created',
+      actorId: 'u2',
+      payload: { cardId: 'c2' },
+    });
+
+    expect(handler1).toHaveBeenCalledTimes(1);
+    expect(handler2).toHaveBeenCalledTimes(2);
+  });
+
+  // --- NEW: Reconnect and refetch tests ---
+
+  it('reconnects manually after 5s when socket stopped retrying and socket is no longer active', () => {
+    vi.useFakeTimers();
+    socket.active = false;
+    const { result } = renderHook(() => useWebSocket());
+    act(() => socket.fire('connect_error', new Error('unauthorized')));
+    expect(result.current.status).toBe('offline');
+    act(() => void vi.advanceTimersByTime(5000));
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+    // After manual retry, connect handler fires and status updates
+    act(() => socket.fire('connect'));
+    expect(result.current.status).toBe('connected');
+  });
+
+  it('reconnect handler runs on reconnect after manual retry', () => {
+    vi.useFakeTimers();
+    socket.active = false;
+    socket.connected = false;
+    const connectHandler = vi.fn();
+    const { result } = renderHook(() => useWebSocket());
+    act(() => void result.current.onConnect(connectHandler));
+    act(() => void socket.fire('connect'));
+    expect(connectHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('refetches board on reconnect after board:join ack', () => {
+    vi.useFakeTimers();
+    socket.active = false;
+    socket.connected = false;
+    const { result } = renderHook(() => useWebSocket());
+
+    act(() => socket.fire('disconnect', 'transport close'));
+    expect(result.current.status).toBe('offline');
+
+    act(() => void vi.advanceTimersByTime(5000));
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+
+    act(() => void socket.fire('connect'));
+    expect(result.current.status).toBe('connected');
+  });
+
+  it('manual retry triggers socket.connect when inactive', () => {
+    vi.useFakeTimers();
+    socket.active = false;
+    const { result } = renderHook(() => useWebSocket());
+
+    act(() => void result.current.onConnect(() => {}));
+    act(() => socket.fire('connect_error', new Error('unauthorized')));
+    act(() => void vi.advanceTimersByTime(5000));
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+    // After manual retry, connect handler fires and status updates
+    act(() => socket.fire('connect'));
+    expect(result.current.status).toBe('connected');
+  });
+
+  it('status transitions through all states on connect/disconnect cycle', () => {
+    vi.useFakeTimers();
+    socket.active = false;
+    socket.connected = false;
+    const { result } = renderHook(() => useWebSocket());
+
+    expect(result.current.status).toBe('connecting');
+
+    act(() => socket.fire('disconnect', 'transport close'));
+    expect(result.current.status).toBe('offline');
+
+    act(() => void vi.advanceTimersByTime(5000));
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+
+    act(() => socket.fire('connect'));
+    expect(result.current.status).toBe('connected');
   });
 });

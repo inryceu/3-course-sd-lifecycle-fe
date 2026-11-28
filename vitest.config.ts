@@ -17,7 +17,17 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'lcov', 'json-summary', 'html'],
-      exclude: ['node_modules/', 'test/', '*.config.*', 'dist/'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'node_modules/',
+        'test/',
+        '*.config.*',
+        'dist/',
+        'src/**/*.{test,spec}.{ts,tsx}',
+        'src/**/*.d.ts',
+        'src/main.tsx',
+        'src/**/*.generated.ts',
+      ],
       // Backlog index (T-40 / KAN-51): >= 70 % lines for the whole repository; raised to 75 % by
       // KAN-66 (measured 83 %). The boards and cards features have their own bar, checked by
       // scripts/check-module-coverage.mjs: a glob threshold here would remove those files from
